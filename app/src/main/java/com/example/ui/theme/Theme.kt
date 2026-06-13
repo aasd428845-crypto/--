@@ -11,16 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-// NOAEM Cleaning Services Brand Colors
-private val NawaemPrimary = Color(0xFF00BCD4) // Bright Teal
-private val NawaemPrimaryDark = Color(0xFF0097A7) // Dark Teal
-private val NawaemSecondary = Color(0xFF0F2849) // Dark Navy
-private val NawaemSecondaryDark = Color(0xFF00BCD4) // Bright Teal
-private val NawaemBackground = Color(0xFFFAFAFA) // Off-white
-private val NawaemBackgroundDark = Color(0xFF121212) // Dark background
-private val NawaemSurface = Color(0xFFFFFFFF) // White
-private val NawaemSurfaceDark = Color(0xFF1E1E1E) // Dark surface
-
 private val DarkColorScheme =
   darkColorScheme(
     primary = NawaemPrimaryDark,
@@ -44,10 +34,10 @@ private val LightColorScheme =
     surface = NawaemSurface,
     onPrimary = Color.White,
     onSecondary = Color.White,
-    onBackground = Color(0xFF0F2849),
-    onSurface = Color(0xFF0F2849),
+    onBackground = Color(0xFF0F172A),
+    onSurface = Color(0xFF0F172A),
     outline = Color(0xFFBDBDBD),
-    primaryContainer = Color(0xFFB2EBF2),
+    primaryContainer = NawaemPrimaryLight,
     onPrimaryContainer = Color(0xFF0097A7)
   )
 
