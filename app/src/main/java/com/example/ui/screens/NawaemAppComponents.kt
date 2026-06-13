@@ -36,6 +36,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -1062,11 +1066,11 @@ fun NawaemLogo(
     modifier: Modifier = Modifier,
     size: Dp = 180.dp
 ) {
-    androidx.compose.foundation.Image(
-        painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.logo),
+    Image(
+        painter = painterResource(id = com.example.R.drawable.logo),
         contentDescription = "شعار شركة نواعم",
         modifier = modifier.size(size),
-        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        contentScale = ContentScale.Fit
     )
 }
 
