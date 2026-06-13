@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NOAEM Cleaning Services - Brand Colors -->
+    <color name="noaem_dark_navy">#FF0F2849</color>
+    <color name="noaem_bright_teal">#FF00BCD4</color>
+    <color name="noaem_dark_teal">#FF0097A7</color>
+    <color name="noaem_medium_teal">#FF00ACC1</color>
+    <color name="noaem_bright_green">#FF2E8B57</color>
+    <color name="noaem_dark_green">#FF1B5E20</color>
+    <color name="noaem_light_gray">#FFE8E8E8</color>
+    <color name="noaem_steel_gray">#FF546E7A</color>
+
+    <!-- Legacy colors (for compatibility) -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

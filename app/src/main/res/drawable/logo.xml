@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- White background circle -->
+    <path
+        android:pathData="M100,100m-95,0a95,95 0 1,0 190,0a95,95 0 1,0 -190,0"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Outer teal gradient ring (dark navy top arc) -->
+    <path
+        android:pathData="M100,8 A92,92 0 0 1 174,42 A92,92 0 0 1 192,100 A92,92 0 0 1 174,158 A92,92 0 0 1 100,192"
+        android:fillColor="#00000000"
+        android:strokeColor="#0D3B6E"
+        android:strokeWidth="14"
+        android:strokeLineCap="round"/>
+
+    <!-- Inner teal bottom arc -->
+    <path
+        android:pathData="M100,192 A92,92 0 0 1 26,158 A92,92 0 0 1 8,100 A92,92 0 0 1 26,42 A92,92 0 0 1 100,8"
+        android:fillColor="#00000000"
+        android:strokeColor="#00BCD4"
+        android:strokeWidth="14"
+        android:strokeLineCap="round"/>
+
+    <!-- Bucket body (metallic trapezoid) -->
+    <path
+        android:pathData="M72,52 L75,90 L105,90 L108,52 Z"
+        android:fillColor="#B0BEC5"/>
+
+    <!-- Bucket shading -->
+    <path
+        android:pathData="M72,52 L75,80 L79,80 L76,52 Z"
+        android:fillColor="#CFD8DC"/>
+
+    <!-- Bucket highlight right -->
+    <path
+        android:pathData="M105,52 L108,52 L105,80 L102,80 Z"
+        android:fillColor="#90A4AE"/>
+
+    <!-- Bucket rim -->
+    <path
+        android:pathData="M70,50 L110,50 L110,54 L70,54 Z"
+        android:fillColor="#546E7A"/>
+
+    <!-- Bucket handle arc -->
+    <path
+        android:pathData="M76,50 A14,14 0 0 1 104,50"
+        android:fillColor="#00000000"
+        android:strokeColor="#0D3B6E"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"/>
+
+    <!-- Bucket blue water inside -->
+    <path
+        android:pathData="M75,54 L76,75 L104,75 L105,54 Z"
+        android:fillColor="#29B6F6"
+        android:fillAlpha="0.7"/>
+
+    <!-- Broom stick (green) -->
+    <path
+        android:pathData="M118,30 L118,110"
+        android:fillColor="#00000000"
+        android:strokeColor="#2E7D32"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"/>
+
+    <!-- Broom green knot/binding -->
+    <path
+        android:pathData="M112,106 A6,6 0 1 0 124,106 A6,6 0 1 0 112,106"
+        android:fillColor="#388E3C"/>
+
+    <!-- Broom bristles (white mop head) -->
+    <path
+        android:pathData="M106,110 Q100,130 108,145 Q118,148 128,145 Q136,130 130,110 Z"
+        android:fillColor="#ECEFF1"/>
+
+    <!-- Bristle shading lines -->
+    <path
+        android:pathData="M110,112 Q107,128 110,143"
+        android:fillColor="#00000000"
+        android:strokeColor="#B0BEC5"
+        android:strokeWidth="1.5"/>
+    <path
+        android:pathData="M115,110 Q113,132 115,145"
+        android:fillColor="#00000000"
+        android:strokeColor="#B0BEC5"
+        android:strokeWidth="1.5"/>
+    <path
+        android:pathData="M120,110 Q119,133 120,145"
+        android:fillColor="#00000000"
+        android:strokeColor="#B0BEC5"
+        android:strokeWidth="1.5"/>
+    <path
+        android:pathData="M125,111 Q125,132 125,144"
+        android:fillColor="#00000000"
+        android:strokeColor="#B0BEC5"
+        android:strokeWidth="1.5"/>
+
+    <!-- Green splash puddle -->
+    <path
+        android:pathData="M100,148 Q90,145 88,153 Q86,162 100,165 Q114,162 112,153 Q110,145 100,148 Z"
+        android:fillColor="#2E7D32"/>
+
+    <!-- Sparkle star left large -->
+    <path
+        android:pathData="M62,80 L64,73 L66,80 L73,82 L66,84 L64,91 L62,84 L55,82 Z"
+        android:fillColor="#0D3B6E"/>
+
+    <!-- Sparkle star left small -->
+    <path
+        android:pathData="M55,95 L56.5,91 L58,95 L62,96.5 L58,98 L56.5,102 L55,98 L51,96.5 Z"
+        android:fillColor="#0D3B6E"/>
+
+    <!-- Sparkle star right -->
+    <path
+        android:pathData="M131,42 L132.5,38 L134,42 L138,43.5 L134,45 L132.5,49 L131,45 L127,43.5 Z"
+        android:fillColor="#00ACC1"/>
+
+    <!-- Company name Arabic - نواعم (using text path simulation) -->
+    <!-- Dark navy color text area placeholder -->
+
+    <!-- Company name text نواعم -->
+    <path
+        android:pathData="M55,115 L145,115 L145,128 Q100,132 55,128 Z"
+        android:fillColor="#00000000"/>
+
+</vector>

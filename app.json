@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Nawaem App",
+    "slug": "nawaem-cleaning-app",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#00B5D5"
+      },
+      "package": "com.aistudio.nawaem.jrmtkr",
+      "versionCode": 2
+    }
+  }
+}

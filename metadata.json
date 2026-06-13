@@ -1,0 +1,6 @@
+{
+  "name": "شركة نواعم",
+  "description": "تطبيق شركة نواعم لخدمات مقاولات النظافة في المستشفيات والفنادق - إدارة الموظفين، التحضير اليومي، والمؤسسات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
