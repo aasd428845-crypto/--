@@ -724,16 +724,6 @@ object MockDatabase {
                     android.util.Log.e("SUPABASE_POST", "فشل حفظ Room: ${e.message}", e)
                 }
 
-                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
-
-                if (!networkAvailable) {
-                    withContext(Dispatchers.Main) {
-                        pendingInstitutions.add(institution)
-                        android.widget.Toast.makeText(context, "📴 حُفظت المؤسسة محلياً وستُرسل تلقائياً عند عودة الإنترنت", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                    return@launch
-                }
-
                 try {
                     supabase.from("institutions").upsert(
                         buildJsonObject {
@@ -804,16 +794,6 @@ object MockDatabase {
                     android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف في Room: ${e.message}", e)
                 }
 
-                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
-
-                if (!networkAvailable) {
-                    withContext(Dispatchers.Main) {
-                        pendingSupervisors.add(supervisor)
-                        android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند عودة الإنترنت", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                    return@launch
-                }
-
                 try {
                     supabase.from("supervisors").upsert(
                         buildJsonObject {
@@ -863,16 +843,6 @@ object MockDatabase {
                     db.nawaemDao().insertEmployee(employee.toRoom())
                 } catch (e: Exception) {
                     android.util.Log.e("SUPABASE_POST", "فشل حفظ الموظف في Room: ${e.message}", e)
-                }
-
-                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
-
-                if (!networkAvailable) {
-                    withContext(Dispatchers.Main) {
-                        pendingEmployees.add(employee)
-                        android.widget.Toast.makeText(context, "📴 حُفظ الموظف محلياً وسيُرسل تلقائياً عند عودة الإنترنت", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                    return@launch
                 }
 
                 try {
