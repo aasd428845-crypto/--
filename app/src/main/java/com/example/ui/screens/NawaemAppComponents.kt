@@ -707,8 +707,10 @@ object MockDatabase {
                     }
                 }
                 null
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("AUTH", "خطأ في مصادقة المشرف: ${e.message}", e)
                 null
             }
         }
@@ -1555,15 +1557,19 @@ fun LoginScreen(
                                         try {
                                             val supabaseSupervisor = MockDatabase.authenticateSupervisorFromSupabase(context, trimmedUser, trimmedPass)
                                             if (supabaseSupervisor != null) {
+                                                isLoggingIn = false
                                                 onLoginSuccess(UserRole.SUPERVISOR, supabaseSupervisor.name)
                                             } else {
+                                                isLoggingIn = false
                                                 errorMessage = "عذراً! البريد الإلكتروني أو كلمة المرور غير صحيحة."
                                             }
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            isLoggingIn = false
+                                            throw e
                                         } catch (e: Exception) {
+                                            isLoggingIn = false
                                             android.util.Log.e("LOGIN", "خطأ في تسجيل الدخول: ${e.message}", e)
                                             errorMessage = "تعذر الاتصال بالسيرفر. تحقق من الإنترنت وأعد المحاولة."
-                                        } finally {
-                                            isLoggingIn = false
                                         }
                                     }
                                 }

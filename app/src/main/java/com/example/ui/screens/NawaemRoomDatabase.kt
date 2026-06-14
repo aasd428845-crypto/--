@@ -351,17 +351,37 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                     "nawaem_local_db"
                 )
                 .addMigrations(
+                    object : Migration(1, 2) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN username TEXT NOT NULL DEFAULT ''")
+                        }
+                    },
+                    object : Migration(2, 3) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            // placeholder — no structural changes in version 3
+                        }
+                    },
                     object : Migration(3, 4) {
                         override fun migrate(database: SupportSQLiteDatabase) {
-                            database.execSQL(
-                                "ALTER TABLE supervisors ADD COLUMN bankName TEXT NOT NULL DEFAULT ''"
-                            )
-                            database.execSQL(
-                                "ALTER TABLE supervisors ADD COLUMN ibanCode TEXT NOT NULL DEFAULT ''"
-                            )
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN bankName TEXT NOT NULL DEFAULT ''")
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN ibanCode TEXT NOT NULL DEFAULT ''")
+                        }
+                    },
+                    object : Migration(1, 4) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN username TEXT NOT NULL DEFAULT ''")
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN bankName TEXT NOT NULL DEFAULT ''")
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN ibanCode TEXT NOT NULL DEFAULT ''")
+                        }
+                    },
+                    object : Migration(2, 4) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN bankName TEXT NOT NULL DEFAULT ''")
+                            database.execSQL("ALTER TABLE supervisors ADD COLUMN ibanCode TEXT NOT NULL DEFAULT ''")
                         }
                     }
                 )
+                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance
