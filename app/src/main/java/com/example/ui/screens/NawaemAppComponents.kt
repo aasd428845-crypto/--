@@ -198,6 +198,7 @@ object MockDatabase {
     var syncErrorMessage by mutableStateOf<String?>(null)
     var lastSyncTime by mutableStateOf<String?>(null)
     var hasLoadedInitialData by mutableStateOf(false) // Track if first sync completed
+    var hasShownSyncSuccessOnce = false
 
     // Pending queues — items saved to Room offline, waiting to be pushed to Supabase
     val pendingInstitutions = mutableListOf<Institution>()
@@ -626,7 +627,10 @@ object MockDatabase {
                         val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
                         lastSyncTime = sdf.format(java.util.Calendar.getInstance().time)
 
-                        Toast.makeText(context, "تم مطابقة ومزامنة البيانات مع السيرفر وتحديث قاعدة بيانات Google Room بنجاح!", Toast.LENGTH_LONG).show()
+                        if (!hasShownSyncSuccessOnce) {
+                            hasShownSyncSuccessOnce = true
+                            Toast.makeText(context, "✅ تم الاتصال بالسيرفر وتحميل البيانات بنجاح", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
