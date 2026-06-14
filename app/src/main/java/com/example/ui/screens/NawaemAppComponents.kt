@@ -792,38 +792,62 @@ object MockDatabase {
     }
 
     fun postSupervisorToSupabase(context: android.content.Context, supervisor: Supervisor) {
-        if (!isNetworkAvailable(context)) {
-            android.widget.Toast.makeText(
-                context,
-                "⚠️ لا يوجد اتصال بالإنترنت. يجب الاتصال لحفظ البيانات.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            return
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+            android.util.Log.e("SUPABASE_POST", "استثناء غير متوقع في coroutine المشرف: ${throwable.message}", throwable)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            // Write to Room first for zero latency offline usage
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                db.nawaemDao().insertSupervisor(supervisor.toRoom())
-            } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    db.nawaemDao().insertSupervisor(supervisor.toRoom())
+                } catch (e: Exception) {
+                    android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف في Room: ${e.message}", e)
+                }
 
-              try {
-                  supabase.from("supervisors").upsert(
-                      buildJsonObject {
-                          put("id", supervisor.id)
-                          put("full_name", supervisor.name)
-                          put("email", supervisor.email)
-                          put("password_key", supervisor.passwordKey)
-                          put("phone", supervisor.phone)
-                          put("address", supervisor.address)
-                          put("monthly_salary", supervisor.monthlySalary)
-                          put("assigned_location", supervisor.assignedLocation)
-                          put("role", "SUPERVISOR")
-                          put("bank_name", supervisor.bankName)
-                          put("iban_code", supervisor.ibanCode)
-                      }
-                  )
-              } catch (e: Exception) { e.printStackTrace() }
+                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
+
+                if (!networkAvailable) {
+                    withContext(Dispatchers.Main) {
+                        pendingSupervisors.add(supervisor)
+                        android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند عودة الإنترنت", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+
+                try {
+                    supabase.from("supervisors").upsert(
+                        buildJsonObject {
+                            put("id", supervisor.id)
+                            put("full_name", supervisor.name)
+                            put("email", supervisor.email)
+                            put("password_key", supervisor.passwordKey)
+                            put("phone", supervisor.phone)
+                            put("address", supervisor.address)
+                            put("monthly_salary", supervisor.monthlySalary)
+                            put("assigned_location", supervisor.assignedLocation)
+                            put("role", "SUPERVISOR")
+                            put("bank_name", supervisor.bankName)
+                            put("iban_code", supervisor.ibanCode)
+                        }
+                    )
+                } catch (e: Exception) {
+                    val msg = e.message ?: ""
+                    if (msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve")) {
+                        android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة المشرف لقائمة الانتظار: ${supervisor.name}")
+                        withContext(Dispatchers.Main) {
+                            pendingSupervisors.add(supervisor)
+                            android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف: $msg", e)
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات المشرف: $msg", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_POST", "خطأ عام غير متوقع في مشرف: ${e.message}", e)
+            }
         }
     }
 
@@ -894,125 +918,138 @@ object MockDatabase {
     }
 
     fun deleteInstitution(context: android.content.Context, institution: Institution) {
-        CoroutineScope(Dispatchers.IO).launch {
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, t ->
+            android.util.Log.e("SUPABASE_DELETE", "خطأ في حذف مؤسسة: ${t.message}", t)
+        }
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                db.nawaemDao().deleteInstitution(institution.toRoom())
-            } catch (e: Exception) { e.printStackTrace() }
-
-              try {
-                  supabase.from("institutions").delete {
-                      filter { eq("name", institution.name) }
-                  }
-              } catch (e: Exception) { e.printStackTrace() }
-
-            withContext(Dispatchers.Main) {
-                institutions.remove(institution)
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    db.nawaemDao().deleteInstitution(institution.toRoom())
+                } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    supabase.from("institutions").delete { filter { eq("name", institution.name) } }
+                } catch (e: Exception) { e.printStackTrace() }
+                withContext(Dispatchers.Main) { institutions.remove(institution) }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_DELETE", "خطأ عام في حذف مؤسسة: ${e.message}", e)
             }
         }
     }
 
     fun deleteSupervisor(context: android.content.Context, supervisor: Supervisor) {
-        CoroutineScope(Dispatchers.IO).launch {
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, t ->
+            android.util.Log.e("SUPABASE_DELETE", "خطأ في حذف مشرف: ${t.message}", t)
+        }
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                db.nawaemDao().deleteSupervisor(supervisor.toRoom())
-            } catch (e: Exception) { e.printStackTrace() }
-
-              try {
-                  supabase.from("supervisors").delete {
-                      filter { eq("email", supervisor.email) }
-                  }
-              } catch (e: Exception) { e.printStackTrace() }
-
-            withContext(Dispatchers.Main) {
-                supervisors.remove(supervisor)
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    db.nawaemDao().deleteSupervisor(supervisor.toRoom())
+                } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    supabase.from("supervisors").delete { filter { eq("email", supervisor.email) } }
+                } catch (e: Exception) { e.printStackTrace() }
+                withContext(Dispatchers.Main) { supervisors.remove(supervisor) }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_DELETE", "خطأ عام في حذف مشرف: ${e.message}", e)
             }
         }
     }
 
     fun deleteEmployee(context: android.content.Context, employee: Employee) {
-        CoroutineScope(Dispatchers.IO).launch {
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, t ->
+            android.util.Log.e("SUPABASE_DELETE", "خطأ في حذف موظف: ${t.message}", t)
+        }
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                db.nawaemDao().deleteEmployee(employee.toRoom())
-            } catch (e: Exception) { e.printStackTrace() }
-
-              try {
-                  supabase.from("employees").delete {
-                      filter { eq("iqama_id", employee.iqamaId) }
-                  }
-              } catch (e: Exception) { e.printStackTrace() }
-
-            withContext(Dispatchers.Main) {
-                employees.remove(employee)
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    db.nawaemDao().deleteEmployee(employee.toRoom())
+                } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    supabase.from("employees").delete { filter { eq("iqama_id", employee.iqamaId) } }
+                } catch (e: Exception) { e.printStackTrace() }
+                withContext(Dispatchers.Main) { employees.remove(employee) }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_DELETE", "خطأ عام في حذف موظف: ${e.message}", e)
             }
         }
     }
 
     fun postAttendanceToSupabase(context: android.content.Context, submission: AttendanceSubmission) {
-        if (!isNetworkAvailable(context)) {
-            android.widget.Toast.makeText(
-                context,
-                "⚠️ لا يوجد اتصال بالإنترنت. يجب الاتصال لحفظ البيانات.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            return
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, t ->
+            android.util.Log.e("SUPABASE_POST", "خطأ في رفع الحضور: ${t.message}", t)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            // Write to Room first for zero latency offline usage
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                val recordsToInsert = submission.records.map { rec ->
-                    RoomAttendanceRecord(
-                        date = submission.date,
-                        employeeId = rec.employeeId,
-                        employeeName = rec.employeeName,
-                        status = rec.status,
-                        lateMinutes = rec.lateMinutes,
-                        institutionName = submission.institutionName,
-                        shift = submission.shift
-                    )
-                }
-                db.nawaemDao().insertAttendance(recordsToInsert)
-            } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    val recordsToInsert = submission.records.map { rec ->
+                        RoomAttendanceRecord(
+                            date = submission.date,
+                            employeeId = rec.employeeId,
+                            employeeName = rec.employeeName,
+                            status = rec.status,
+                            lateMinutes = rec.lateMinutes,
+                            institutionName = submission.institutionName,
+                            shift = submission.shift
+                        )
+                    }
+                    db.nawaemDao().insertAttendance(recordsToInsert)
+                } catch (e: Exception) { e.printStackTrace() }
 
-              try {
-                  for (rec in submission.records) {
-                      supabase.from("attendance").insert(
-                          buildJsonObject {
-                              put("attendance_date", submission.date)
-                              put("employee_id", rec.employeeId)
-                              put("status", rec.status)
-                              put("recorded_by", submission.institutionName + " - " + submission.shift)
-                              put("notes", "تحضير عبر التطبيق")
-                          }
-                      )
-                  }
-              } catch (e: Exception) { e.printStackTrace() }
+                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
+                if (!networkAvailable) return@launch
+
+                try {
+                    for (rec in submission.records) {
+                        supabase.from("attendance").insert(
+                            buildJsonObject {
+                                put("attendance_date", submission.date)
+                                put("employee_id", rec.employeeId)
+                                put("status", rec.status)
+                                put("recorded_by", submission.institutionName + " - " + submission.shift)
+                                put("notes", "تحضير عبر التطبيق")
+                            }
+                        )
+                    }
+                } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_POST", "خطأ عام في رفع الحضور: ${e.message}", e)
+            }
         }
     }
 
     fun postInvoiceToSupabase(context: android.content.Context, invoice: Invoice) {
-        CoroutineScope(Dispatchers.IO).launch {
-            // Write to Room first for zero latency offline usage
+        val handler = kotlinx.coroutines.CoroutineExceptionHandler { _, t ->
+            android.util.Log.e("SUPABASE_POST", "خطأ في رفع الفاتورة: ${t.message}", t)
+        }
+        CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                val db = NawaemRoomDatabase.getDatabase(context)
-                db.nawaemDao().insertInvoice(invoice.toRoom())
-            } catch (e: Exception) { e.printStackTrace() }
+                try {
+                    val db = NawaemRoomDatabase.getDatabase(context)
+                    db.nawaemDao().insertInvoice(invoice.toRoom())
+                } catch (e: Exception) { e.printStackTrace() }
 
-              try {
-                  supabase.from("invoices").upsert(
-                      buildJsonObject {
-                          put("id", invoice.id)
-                          put("institution_name", invoice.institutionName)
-                          put("description", invoice.description)
-                          put("total_amount", invoice.totalAmount)
-                          put("date_time", invoice.dateTime)
-                          put("invoice_image_url", invoice.invoiceImageUrl)
-                      }
-                  )
-              } catch (e: Exception) { e.printStackTrace() }
+                val networkAvailable = try { isNetworkAvailable(context) } catch (e: Exception) { false }
+                if (!networkAvailable) return@launch
+
+                try {
+                    supabase.from("invoices").upsert(
+                        buildJsonObject {
+                            put("id", invoice.id)
+                            put("institution_name", invoice.institutionName)
+                            put("description", invoice.description)
+                            put("total_amount", invoice.totalAmount)
+                            put("date_time", invoice.dateTime)
+                            put("invoice_image_url", invoice.invoiceImageUrl)
+                        }
+                    )
+                } catch (e: Exception) { e.printStackTrace() }
+            } catch (e: Exception) {
+                android.util.Log.e("SUPABASE_POST", "خطأ عام في رفع فاتورة: ${e.message}", e)
+            }
         }
     }
 
