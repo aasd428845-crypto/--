@@ -868,16 +868,52 @@ object MockDatabase {
                     )
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    if (msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve")) {
-                        android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة الموظف لقائمة الانتظار: ${employee.name}")
-                        withContext(Dispatchers.Main) {
-                            pendingEmployees.add(employee)
-                            android.widget.Toast.makeText(context, "📴 حُفظ الموظف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
+                    when {
+                        msg.contains("schema cache") || msg.contains("gender") || msg.contains("Could not find") -> {
+                            // عمود غير موجود في الـ schema cache — أرسل بالحقول الأساسية فقط
+                            android.util.Log.w("SUPABASE_POST", "schema cache — إعادة إرسال الموظف بحقول أساسية: $msg")
+                            try {
+                                supabase.from("employees").upsert(
+                                    buildJsonObject {
+                                        put("id", employee.id)
+                                        put("full_name", employee.name)
+                                        put("nationality", employee.nationality)
+                                        put("iqama_id", employee.iqamaId)
+                                        put("phone", employee.phone)
+                                        put("address", employee.address)
+                                        put("assigned_location", employee.location)
+                                        put("department", employee.department)
+                                        put("work_days_scheduled", employee.workDaysScheduled)
+                                        put("shift", employee.shift)
+                                        put("base_salary", employee.baseSalary)
+                                        put("bank_name", employee.bankName)
+                                        put("iban_code", employee.iban)
+                                        put("bank_account_owner_name", employee.bankAccountOwnerName.ifBlank { employee.name })
+                                        put("bank_account_phone", employee.bankAccountPhone.ifBlank { employee.phone })
+                                    }
+                                )
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "✅ تم حفظ الموظف (يرجى تحديث schema قاعدة البيانات)", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            } catch (e2: Exception) {
+                                android.util.Log.e("SUPABASE_POST", "فشل نهائي في حفظ الموظف: ${e2.message}", e2)
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف: ${e2.message}", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
                         }
-                    } else {
-                        android.util.Log.e("SUPABASE_POST", "فشل حفظ الموظف: $msg", e)
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف: $msg", android.widget.Toast.LENGTH_LONG).show()
+                        msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve") -> {
+                            android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة الموظف لقائمة الانتظار: ${employee.name}")
+                            withContext(Dispatchers.Main) {
+                                pendingEmployees.add(employee)
+                                android.widget.Toast.makeText(context, "📴 حُفظ الموظف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        else -> {
+                            android.util.Log.e("SUPABASE_POST", "فشل حفظ الموظف: $msg", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف: $msg", android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 }
@@ -1754,7 +1790,7 @@ fun CeoDashboardScreen(
                                 } else {
                                     val value = monthlyValue.toDoubleOrNull() ?: 10000.0
                                     val newInst = Institution(
-                                        id = "inst_${System.currentTimeMillis()}_${(1000..9999).random()}",
+                                        id = java.util.UUID.randomUUID().toString(),
                                         name = name.trim(),
                                         type = type,
                                         supervisorName = "لم يعين",
@@ -2003,7 +2039,7 @@ fun CeoDashboardScreen(
                                     errorMsg = "الرجاء إضافة مؤسسة واحدة وتنسيقها أولاً من تبويب المؤسسات!"
                                 } else {
                                     val rSalary = monthlySalary.toDoubleOrNull() ?: 4500.0
-                                    val newId = "sup_${System.currentTimeMillis()}_${(1000..9999).random()}"
+                                    val newId = java.util.UUID.randomUUID().toString()
                                     val newSup = Supervisor(
                                         id = newId,
                                         name = name.trim(),
@@ -2525,7 +2561,7 @@ fun CeoDashboardScreen(
                                     val deptInfo = if (isHospital) hospitalDept else hotelRoomCount
 
                                     val newEmp = Employee(
-                                        id = "emp_${System.currentTimeMillis()}_${(1000..9999).random()}",
+                                        id = java.util.UUID.randomUUID().toString(),
                                         name = empName.trim(),
                                         nationality = nationality.trim(),
                                         iqamaId = iqamaId.trim(),
