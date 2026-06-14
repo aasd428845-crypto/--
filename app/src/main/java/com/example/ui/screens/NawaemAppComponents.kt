@@ -396,61 +396,65 @@ object MockDatabase {
               try {
                   // Fetch Institutions via Supabase SDK
                   val fetchedInsts = mutableListOf<Institution>()
-                  val instArray = JSONArray(supabase.from("institutions").select().data)
-                  for (i in 0 until instArray.length()) {
-                      val obj = instArray.getJSONObject(i)
-                      val id = obj.optString("id", "")
-                      val name = obj.optString("name", "")
-                      val type = obj.optString("type", "مستشفى")
-                      val address = obj.optString("address", "")
-                      val monthlyContractValue = obj.optDouble("monthly_contract_value", 15000.0)
-                      fetchedInsts.add(
-                          Institution(
-                              id = id,
-                              name = name,
-                              type = type,
-                              supervisorName = "تحت الإشراف",
-                              employeesCount = 0,
-                              progress = 0.9f,
-                              address = address,
-                              monthlyContractValue = monthlyContractValue,
-                              shiftStartTime = "06:00 AM"
+                  try {
+                      val instArray = JSONArray(supabase.from("institutions").select().data)
+                      for (i in 0 until instArray.length()) {
+                          val obj = instArray.getJSONObject(i)
+                          fetchedInsts.add(
+                              Institution(
+                                  id = obj.optString("id", ""),
+                                  name = obj.optString("name", ""),
+                                  type = obj.optString("type", "مستشفى"),
+                                  supervisorName = "تحت الإشراف",
+                                  employeesCount = 0,
+                                  progress = 0.9f,
+                                  address = obj.optString("address", ""),
+                                  monthlyContractValue = obj.optDouble("monthly_contract_value", 15000.0),
+                                  shiftStartTime = obj.optString("shift_start_time", "06:00 AM")
+                              )
                           )
-                      )
+                      }
+                  } catch (e: Exception) {
+                      android.util.Log.w("SYNC", "فشل جلب المؤسسات من Supabase — fallback Room: ${e.message}")
+                      try {
+                          val db = NawaemRoomDatabase.getDatabase(context)
+                          val local = db.nawaemDao().getAllInstitutions().map { it.toDomain() }
+                          if (local.isNotEmpty()) fetchedInsts.addAll(local)
+                      } catch (re: Exception) { re.printStackTrace() }
                   }
 
                   // Fetch Supervisors via Supabase SDK
                   val fetchedSups = mutableListOf<Supervisor>()
-                  val supArray = JSONArray(supabase.from("supervisors").select().data)
-                  for (i in 0 until supArray.length()) {
-                      val obj = supArray.getJSONObject(i)
-                      val id = obj.optString("id", "")
-                      val fullName = obj.optString("full_name", "")
-                      val assignedLocation = obj.optString("assigned_location", "")
-                      val phone = obj.optString("phone", "")
-                      val email = obj.optString("email", "")
-                      val passwordKey = obj.optString("password_key", "123")
-                      val address = obj.optString("address", "")
-                      val monthlySalary = obj.optDouble("monthly_salary", 5000.0)
-                          val bankName = obj.optString("bank_name", "بنك الكريمي الإسلامي")
-                          val ibanCode = obj.optString("iban_code", "")
+                  try {
+                      val supArray = JSONArray(supabase.from("supervisors").select().data)
+                      for (i in 0 until supArray.length()) {
+                          val obj = supArray.getJSONObject(i)
+                          val email = obj.optString("email", "")
                           fetchedSups.add(
                               Supervisor(
-                                  id = id,
-                                  name = fullName,
-                                  assignedLocation = assignedLocation,
-                                  phone = phone,
+                                  id = obj.optString("id", ""),
+                                  name = obj.optString("full_name", ""),
+                                  assignedLocation = obj.optString("assigned_location", ""),
+                                  phone = obj.optString("phone", ""),
                                   activeSince = "2024-05-15",
                                   submittedAttendanceToday = false,
                                   email = email,
-                                  passwordKey = passwordKey,
-                                  address = address,
-                                  monthlySalary = monthlySalary,
+                                  passwordKey = obj.optString("password_key", ""),
+                                  address = obj.optString("address", ""),
+                                  monthlySalary = obj.optDouble("monthly_salary", 5000.0),
                                   username = obj.optString("username", email.substringBefore("@")),
-                                  bankName = bankName,
-                                  ibanCode = ibanCode
+                                  bankName = obj.optString("bank_name", "بنك الكريمي الإسلامي"),
+                                  ibanCode = obj.optString("iban_code", "")
                               )
                           )
+                      }
+                  } catch (e: Exception) {
+                      android.util.Log.w("SYNC", "فشل جلب المشرفين من Supabase — fallback Room: ${e.message}")
+                      try {
+                          val db = NawaemRoomDatabase.getDatabase(context)
+                          val local = db.nawaemDao().getAllSupervisors().map { it.toDomain() }
+                          if (local.isNotEmpty()) fetchedSups.addAll(local)
+                      } catch (re: Exception) { re.printStackTrace() }
                   }
 
                   // Fetch Employees via Supabase SDK — مع fallback من Room إذا فشلت الشبكة
@@ -810,18 +814,51 @@ object MockDatabase {
                             put("iban_code", supervisor.ibanCode)
                         }
                     )
+                    android.util.Log.i("SUPABASE_POST", "✅ تم حفظ المشرف في Supabase: ${supervisor.name}")
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    if (msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve")) {
-                        android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة المشرف لقائمة الانتظار: ${supervisor.name}")
-                        withContext(Dispatchers.Main) {
-                            pendingSupervisors.add(supervisor)
-                            android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
+                    when {
+                        msg.contains("schema cache") || msg.contains("bank_name") || msg.contains("iban_code") || msg.contains("Could not find") -> {
+                            // أعمدة غير موجودة في schema cache — أرسل بالحقول الأساسية فقط
+                            android.util.Log.w("SUPABASE_POST", "schema cache — إعادة إرسال المشرف بحقول أساسية: $msg")
+                            try {
+                                supabase.from("supervisors").upsert(
+                                    buildJsonObject {
+                                        put("id", supervisor.id)
+                                        put("full_name", supervisor.name)
+                                        put("email", supervisor.email)
+                                        put("password_key", supervisor.passwordKey)
+                                        put("phone", supervisor.phone)
+                                        put("address", supervisor.address)
+                                        put("monthly_salary", supervisor.monthlySalary)
+                                        put("assigned_location", supervisor.assignedLocation)
+                                        put("role", "SUPERVISOR")
+                                    }
+                                )
+                                android.util.Log.i("SUPABASE_POST", "✅ تم حفظ المشرف (بحقول أساسية): ${supervisor.name}")
+                                withContext(Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "✅ تم حفظ المشرف بنجاح", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e2: Exception) {
+                                android.util.Log.e("SUPABASE_POST", "فشل نهائي في حفظ المشرف: ${e2.message}", e2)
+                                withContext(Dispatchers.Main) {
+                                    pendingSupervisors.add(supervisor)
+                                    android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل لاحقاً", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
                         }
-                    } else {
-                        android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف: $msg", e)
-                        withContext(Dispatchers.Main) {
-                            android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات المشرف: $msg", android.widget.Toast.LENGTH_LONG).show()
+                        msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve") -> {
+                            android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة المشرف لقائمة الانتظار: ${supervisor.name}")
+                            withContext(Dispatchers.Main) {
+                                pendingSupervisors.add(supervisor)
+                                android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        else -> {
+                            android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف: $msg", e)
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات المشرف: $msg", android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 }
@@ -1515,14 +1552,18 @@ fun LoginScreen(
                                     isLoggingIn = true
                                     errorMessage = "جاري التحقق من السيرفر..."
                                     scope.launch {
-                                        val supabaseSupervisor = MockDatabase.authenticateSupervisorFromSupabase(context, trimmedUser, trimmedPass)
-                                        isLoggingIn = false
-                                        if (supabaseSupervisor != null) {
-                                            // Step: Found in Supabase, saved to Room, now login
-                                            onLoginSuccess(UserRole.SUPERVISOR, supabaseSupervisor.name)
-                                        } else {
-                                            // Step 3: Not found anywhere
-                                            errorMessage = "عذراً! اسم المستخدم أو كلمة المرور غير صحيحة. الرجاء إعادة المحاولة."
+                                        try {
+                                            val supabaseSupervisor = MockDatabase.authenticateSupervisorFromSupabase(context, trimmedUser, trimmedPass)
+                                            if (supabaseSupervisor != null) {
+                                                onLoginSuccess(UserRole.SUPERVISOR, supabaseSupervisor.name)
+                                            } else {
+                                                errorMessage = "عذراً! البريد الإلكتروني أو كلمة المرور غير صحيحة."
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("LOGIN", "خطأ في تسجيل الدخول: ${e.message}", e)
+                                            errorMessage = "تعذر الاتصال بالسيرفر. تحقق من الإنترنت وأعد المحاولة."
+                                        } finally {
+                                            isLoggingIn = false
                                         }
                                     }
                                 }
