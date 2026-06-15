@@ -200,10 +200,7 @@ object MockDatabase {
     var hasLoadedInitialData by mutableStateOf(false) // Track if first sync completed
     var hasShownSyncSuccessOnce = false
 
-    // Pending queues — items saved to Room offline, waiting to be pushed to Supabase
-    val pendingInstitutions = mutableListOf<Institution>()
-    val pendingEmployees = mutableListOf<Employee>()
-    val pendingSupervisors = mutableListOf<Supervisor>()
+    // Supabase is the single source of truth — no local pending queues
 
     fun isNetworkAvailable(context: android.content.Context): Boolean {
         return try {
@@ -300,84 +297,7 @@ object MockDatabase {
         }
     }
 
-    suspend fun flushPendingData(context: android.content.Context) {
-        val instCopy = pendingInstitutions.toList()
-        for (inst in instCopy) {
-            try {
-                supabase.from("institutions").upsert(
-                    buildJsonObject {
-                        put("id", inst.id)
-                        put("name", inst.name)
-                        put("type", inst.type)
-                        put("address", inst.address)
-                        put("monthly_contract_value", inst.monthlyContractValue)
-                        put("shift_start_time", inst.shiftStartTime)
-                    }
-                )
-                pendingInstitutions.remove(inst)
-                android.util.Log.d("FLUSH", "نُشرت مؤسسة معلّقة: ${inst.name}")
-            } catch (e: Exception) {
-                android.util.Log.w("FLUSH", "فشل نشر مؤسسة معلّقة: ${e.message}")
-                break
-            }
-        }
-        val empCopy = pendingEmployees.toList()
-        for (emp in empCopy) {
-            try {
-                supabase.from("employees").upsert(
-                    buildJsonObject {
-                        put("id", emp.id)
-                        put("full_name", emp.name)
-                        put("gender", emp.gender)
-                        put("nationality", emp.nationality)
-                        put("iqama_id", emp.iqamaId)
-                        put("phone", emp.phone)
-                        put("address", emp.address)
-                        put("assigned_location", emp.location)
-                        put("department", emp.department)
-                        put("work_days_scheduled", emp.workDaysScheduled)
-                        put("shift", emp.shift)
-                        put("base_salary", emp.baseSalary)
-                        put("bank_name", emp.bankName)
-                        put("iban_code", emp.iban)
-                        put("bank_account_owner_name", emp.bankAccountOwnerName)
-                        put("bank_account_phone", emp.bankAccountPhone)
-                        put("status", emp.status)
-                    }
-                )
-                pendingEmployees.remove(emp)
-                android.util.Log.d("FLUSH", "نُشر موظف معلّق: ${emp.name}")
-            } catch (e: Exception) {
-                android.util.Log.w("FLUSH", "فشل نشر موظف معلّق: ${e.message}")
-                break
-            }
-        }
-        val supCopy = pendingSupervisors.toList()
-        for (sup in supCopy) {
-            try {
-                supabase.from("supervisors").upsert(
-                    buildJsonObject {
-                        put("id", sup.id)
-                        put("full_name", sup.name)
-                        put("email", sup.email)
-                        put("password_key", sup.passwordKey)
-                        put("phone", sup.phone)
-                        put("address", sup.address)
-                        put("monthly_salary", sup.monthlySalary)
-                        put("assigned_location", sup.assignedLocation)
-                        put("role", "SUPERVISOR")
-                        put("bank_name", sup.bankName)
-                        put("iban_code", sup.ibanCode)
-                    }
-                )
-                pendingSupervisors.remove(sup)
-                android.util.Log.d("FLUSH", "نُشر مشرف معلّق: ${sup.name}")
-            } catch (e: Exception) {
-                android.util.Log.w("FLUSH", "فشل نشر مشرف معلّق: ${e.message}")
-                break
-            }
-        }
-    }
+    // flushPendingData removed — Supabase is the single source of truth
 
     fun syncFromSupabase(context: android.content.Context, forceManual: Boolean = false) {
         // Pre-load from Google Room to make the UI interactive instantly
@@ -396,9 +316,6 @@ object MockDatabase {
           syncErrorMessage = null
 
           CoroutineScope(Dispatchers.IO).launch {
-              // رفع البيانات المعلّقة أولاً عند عودة الإنترنت
-              try { flushPendingData(context) } catch (e: Exception) { e.printStackTrace() }
-
               try {
                   // Fetch Institutions via Supabase SDK
                   val fetchedInsts = mutableListOf<Institution>()
@@ -728,14 +645,8 @@ object MockDatabase {
         }
         CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                // حفظ في Room أولاً — يضمن بقاء البيانات حتى لو فشل Supabase
-                try {
-                    val db = NawaemRoomDatabase.getDatabase(context)
-                    db.nawaemDao().insertInstitution(institution.toRoom())
-                } catch (e: Exception) {
-                    android.util.Log.e("SUPABASE_POST", "فشل حفظ Room: ${e.message}", e)
-                }
-
+                var saved = false
+                // محاولة 1: إرسال كامل الحقول
                 try {
                     supabase.from("institutions").upsert(
                         buildJsonObject {
@@ -747,48 +658,33 @@ object MockDatabase {
                             put("shift_start_time", institution.shiftStartTime)
                         }
                     )
+                    saved = true
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    when {
-                        msg.contains("shift_start_time") || msg.contains("schema cache") -> {
-                            // الحقل غير موجود في السيرفر بعد — أرسل بدونه مؤقتاً
-                            try {
-                                supabase.from("institutions").upsert(
-                                    buildJsonObject {
-                                        put("id", institution.id)
-                                        put("name", institution.name)
-                                        put("type", institution.type)
-                                        put("address", institution.address)
-                                        put("monthly_contract_value", institution.monthlyContractValue)
-                                    }
-                                )
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "✅ تم حفظ المؤسسة (بدون وقت الوردية - يرجى تحديث قاعدة البيانات)", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            } catch (e2: Exception) {
-                                android.util.Log.e("SUPABASE_POST", "فشل نهائي: ${e2.message}", e2)
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ المؤسسة: ${e2.message}", android.widget.Toast.LENGTH_LONG).show()
-                                }
+                    if (msg.contains("shift_start_time") || msg.contains("schema cache") || msg.contains("Could not find")) {
+                        // محاولة 2: بدون shift_start_time
+                        supabase.from("institutions").upsert(
+                            buildJsonObject {
+                                put("id", institution.id)
+                                put("name", institution.name)
+                                put("type", institution.type)
+                                put("address", institution.address)
+                                put("monthly_contract_value", institution.monthlyContractValue)
                             }
-                        }
-                        msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve") -> {
-                            android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة المؤسسة لقائمة الانتظار: ${institution.name}")
-                            withContext(Dispatchers.Main) {
-                                pendingInstitutions.add(institution)
-                                android.widget.Toast.makeText(context, "📴 حُفظت المؤسسة محلياً وستُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        else -> {
-                            android.util.Log.e("SUPABASE_POST", "فشل: $msg", e)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "⚠️ فشل حفظ البيانات: $msg", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
+                        )
+                        saved = true
+                    } else throw e
+                }
+                if (saved) {
+                    // حفظ كاش محلي بعد نجاح Supabase
+                    try { NawaemRoomDatabase.getDatabase(context).nawaemDao().insertInstitution(institution.toRoom()) } catch (_: Exception) {}
+                    android.util.Log.i("SUPABASE_POST", "✅ مؤسسة محفوظة: ${institution.name}")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("SUPABASE_POST", "خطأ عام غير متوقع: ${e.message}", e)
+                android.util.Log.e("SUPABASE_POST", "❌ فشل حفظ المؤسسة: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ المؤسسة في السيرفر: ${e.message?.take(80)}", android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -799,13 +695,8 @@ object MockDatabase {
         }
         CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                try {
-                    val db = NawaemRoomDatabase.getDatabase(context)
-                    db.nawaemDao().insertSupervisor(supervisor.toRoom())
-                } catch (e: Exception) {
-                    android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف في Room: ${e.message}", e)
-                }
-
+                var saved = false
+                // محاولة 1: إرسال كامل الحقول
                 try {
                     supabase.from("supervisors").upsert(
                         buildJsonObject {
@@ -822,56 +713,36 @@ object MockDatabase {
                             put("iban_code", supervisor.ibanCode)
                         }
                     )
-                    android.util.Log.i("SUPABASE_POST", "✅ تم حفظ المشرف في Supabase: ${supervisor.name}")
+                    saved = true
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    when {
-                        msg.contains("schema cache") || msg.contains("bank_name") || msg.contains("iban_code") || msg.contains("Could not find") -> {
-                            // أعمدة غير موجودة في schema cache — أرسل بالحقول الأساسية فقط
-                            android.util.Log.w("SUPABASE_POST", "schema cache — إعادة إرسال المشرف بحقول أساسية: $msg")
-                            try {
-                                supabase.from("supervisors").upsert(
-                                    buildJsonObject {
-                                        put("id", supervisor.id)
-                                        put("full_name", supervisor.name)
-                                        put("email", supervisor.email)
-                                        put("password_key", supervisor.passwordKey)
-                                        put("phone", supervisor.phone)
-                                        put("address", supervisor.address)
-                                        put("monthly_salary", supervisor.monthlySalary)
-                                        put("assigned_location", supervisor.assignedLocation)
-                                        put("role", "SUPERVISOR")
-                                    }
-                                )
-                                android.util.Log.i("SUPABASE_POST", "✅ تم حفظ المشرف (بحقول أساسية): ${supervisor.name}")
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "✅ تم حفظ المشرف بنجاح", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e2: Exception) {
-                                android.util.Log.e("SUPABASE_POST", "فشل نهائي في حفظ المشرف: ${e2.message}", e2)
-                                withContext(Dispatchers.Main) {
-                                    pendingSupervisors.add(supervisor)
-                                    android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل لاحقاً", android.widget.Toast.LENGTH_LONG).show()
-                                }
+                    if (msg.contains("bank_name") || msg.contains("iban_code") || msg.contains("schema cache") || msg.contains("Could not find")) {
+                        // محاولة 2: بدون الأعمدة البنكية
+                        supabase.from("supervisors").upsert(
+                            buildJsonObject {
+                                put("id", supervisor.id)
+                                put("full_name", supervisor.name)
+                                put("email", supervisor.email)
+                                put("password_key", supervisor.passwordKey)
+                                put("phone", supervisor.phone)
+                                put("address", supervisor.address)
+                                put("monthly_salary", supervisor.monthlySalary)
+                                put("assigned_location", supervisor.assignedLocation)
+                                put("role", "SUPERVISOR")
                             }
-                        }
-                        msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve") -> {
-                            android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة المشرف لقائمة الانتظار: ${supervisor.name}")
-                            withContext(Dispatchers.Main) {
-                                pendingSupervisors.add(supervisor)
-                                android.widget.Toast.makeText(context, "📴 حُفظ المشرف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        else -> {
-                            android.util.Log.e("SUPABASE_POST", "فشل حفظ المشرف: $msg", e)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات المشرف: $msg", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
+                        )
+                        saved = true
+                    } else throw e
+                }
+                if (saved) {
+                    try { NawaemRoomDatabase.getDatabase(context).nawaemDao().insertSupervisor(supervisor.toRoom()) } catch (_: Exception) {}
+                    android.util.Log.i("SUPABASE_POST", "✅ مشرف محفوظ: ${supervisor.name}")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("SUPABASE_POST", "خطأ عام غير متوقع في مشرف: ${e.message}", e)
+                android.util.Log.e("SUPABASE_POST", "❌ فشل حفظ المشرف: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات المشرف في السيرفر: ${e.message?.take(80)}", android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -882,14 +753,8 @@ object MockDatabase {
         }
         CoroutineScope(Dispatchers.IO + handler).launch {
             try {
-                // حفظ في Room أولاً — يضمن بقاء البيانات حتى لو فشل Supabase
-                try {
-                    val db = NawaemRoomDatabase.getDatabase(context)
-                    db.nawaemDao().insertEmployee(employee.toRoom())
-                } catch (e: Exception) {
-                    android.util.Log.e("SUPABASE_POST", "فشل حفظ الموظف في Room: ${e.message}", e)
-                }
-
+                var saved = false
+                // محاولة 1: إرسال كامل الحقول
                 try {
                     supabase.from("employees").upsert(
                         buildJsonObject {
@@ -911,59 +776,42 @@ object MockDatabase {
                             put("bank_account_phone", employee.bankAccountPhone.ifBlank { employee.phone })
                         }
                     )
+                    saved = true
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    when {
-                        msg.contains("schema cache") || msg.contains("gender") || msg.contains("Could not find") -> {
-                            // عمود غير موجود في الـ schema cache — أرسل بالحقول الأساسية فقط
-                            android.util.Log.w("SUPABASE_POST", "schema cache — إعادة إرسال الموظف بحقول أساسية: $msg")
-                            try {
-                                supabase.from("employees").upsert(
-                                    buildJsonObject {
-                                        put("id", employee.id)
-                                        put("full_name", employee.name)
-                                        put("nationality", employee.nationality)
-                                        put("iqama_id", employee.iqamaId)
-                                        put("phone", employee.phone)
-                                        put("address", employee.address)
-                                        put("assigned_location", employee.location)
-                                        put("department", employee.department)
-                                        put("work_days_scheduled", employee.workDaysScheduled)
-                                        put("shift", employee.shift)
-                                        put("base_salary", employee.baseSalary)
-                                        put("bank_name", employee.bankName)
-                                        put("iban_code", employee.iban)
-                                        put("bank_account_owner_name", employee.bankAccountOwnerName.ifBlank { employee.name })
-                                        put("bank_account_phone", employee.bankAccountPhone.ifBlank { employee.phone })
-                                    }
-                                )
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "✅ تم حفظ الموظف (يرجى تحديث schema قاعدة البيانات)", android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            } catch (e2: Exception) {
-                                android.util.Log.e("SUPABASE_POST", "فشل نهائي في حفظ الموظف: ${e2.message}", e2)
-                                withContext(Dispatchers.Main) {
-                                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف: ${e2.message}", android.widget.Toast.LENGTH_LONG).show()
-                                }
+                    if (msg.contains("gender") || msg.contains("schema cache") || msg.contains("Could not find")) {
+                        // محاولة 2: بدون gender
+                        supabase.from("employees").upsert(
+                            buildJsonObject {
+                                put("id", employee.id)
+                                put("full_name", employee.name)
+                                put("nationality", employee.nationality)
+                                put("iqama_id", employee.iqamaId)
+                                put("phone", employee.phone)
+                                put("address", employee.address)
+                                put("assigned_location", employee.location)
+                                put("department", employee.department)
+                                put("work_days_scheduled", employee.workDaysScheduled)
+                                put("shift", employee.shift)
+                                put("base_salary", employee.baseSalary)
+                                put("bank_name", employee.bankName)
+                                put("iban_code", employee.iban)
+                                put("bank_account_owner_name", employee.bankAccountOwnerName.ifBlank { employee.name })
+                                put("bank_account_phone", employee.bankAccountPhone.ifBlank { employee.phone })
                             }
-                        }
-                        msg.contains("Connection") || msg.contains("timeout") || msg.contains("I/O") || msg.contains("Unable to resolve") -> {
-                            android.util.Log.w("SUPABASE_POST", "خطأ شبكة — تمت إضافة الموظف لقائمة الانتظار: ${employee.name}")
-                            withContext(Dispatchers.Main) {
-                                pendingEmployees.add(employee)
-                                android.widget.Toast.makeText(context, "📴 حُفظ الموظف محلياً وسيُرسل تلقائياً عند استقرار الاتصال", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                        else -> {
-                            android.util.Log.e("SUPABASE_POST", "فشل حفظ الموظف: $msg", e)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف: $msg", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    }
+                        )
+                        saved = true
+                    } else throw e
+                }
+                if (saved) {
+                    try { NawaemRoomDatabase.getDatabase(context).nawaemDao().insertEmployee(employee.toRoom()) } catch (_: Exception) {}
+                    android.util.Log.i("SUPABASE_POST", "✅ موظف محفوظ: ${employee.name}")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("SUPABASE_POST", "خطأ عام غير متوقع في موظف: ${e.message}", e)
+                android.util.Log.e("SUPABASE_POST", "❌ فشل حفظ الموظف: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "⚠️ فشل حفظ بيانات الموظف في السيرفر: ${e.message?.take(80)}", android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -3166,8 +3014,13 @@ fun SupervisorDashboardScreen(
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        if (!MockDatabase.isConnectedToSupabase && !MockDatabase.isSyncing) {
-            MockDatabase.syncFromSupabase(context)
+        // Always sync fresh on supervisor login to get latest data from all devices
+        MockDatabase.hasShownSyncSuccessOnce = false
+        MockDatabase.syncFromSupabase(context)
+        // Auto-refresh every 30 seconds to stay in sync with CEO device
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            try { MockDatabase.syncFromSupabase(context) } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
@@ -3201,13 +3054,11 @@ fun SupervisorDashboardScreen(
         return
     }
 
-    // 1. Map logged-in supervisor name to assign assignedLocation
-    val supervisor = remember {
-        MockDatabase.supervisors.find {
-            it.name.equals(currentSupervisorName, ignoreCase = true)
-        }
+    // 1. Map logged-in supervisor — reactive (no remember) so it updates after sync
+    val supervisor = MockDatabase.supervisors.find {
+        it.name.equals(currentSupervisorName, ignoreCase = true)
     }
-    val assignedLocation = supervisor?.assignedLocation ?: "غير محدد"
+    val assignedLocation = supervisor?.assignedLocation ?: ""
 
     // 2. Auto Generate Current Date & Day Name
     val sdfDate = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US) }
@@ -3242,12 +3093,14 @@ fun SupervisorDashboardScreen(
         }
     }
 
-    // 4. Load matching employees for this supervisor's location (Filter: Only show Active status employees)
-    val localEmployees = remember(assignedLocation, MockDatabase.employees.map { it.status }) {
-        MockDatabase.employees.filter { 
-            it.location.equals(assignedLocation, ignoreCase = true) && 
+    // 4. Load matching employees — reactive (no remember) so it updates after sync
+    val localEmployees = if (assignedLocation.isNotBlank()) {
+        MockDatabase.employees.filter {
+            it.location.equals(assignedLocation, ignoreCase = true) &&
             it.status == "نشط"
         }
+    } else {
+        emptyList()
     }
 
     // Local state state tracker for attendance
