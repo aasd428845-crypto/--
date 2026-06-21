@@ -3301,7 +3301,9 @@ fun SupervisorDashboardScreen(
     }
 
     // Show loading screen while initial sync is in progress and data is empty
-    if (MockDatabase.isSyncing && !MockDatabase.hasLoadedInitialData) {
+    if (MockDatabase.isSyncing && !MockDatabase.hasLoadedInitialData &&
+        MockDatabase.localEmployees.isEmpty() &&
+        MockDatabase.institutions.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
             contentAlignment = Alignment.Center
@@ -3584,43 +3586,6 @@ fun SupervisorDashboardScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = { selectedShift = "مسائي" },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedShift == "مسائي")
-                                        Color.White else Color.White.copy(alpha = 0.2f),
-                                    contentColor = if (selectedShift == "مسائي")
-                                        MaterialTheme.colorScheme.primary else Color.White
-                                ),
-                                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
-                                modifier = Modifier.weight(1f).height(38.dp),
-                                contentPadding = PaddingValues(4.dp)
-                            ) {
-                                Text("🌙 الفترة المسائية",
-                                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                            Button(
-                                onClick = { selectedShift = "صباحي" },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedShift == "صباحي")
-                                        Color.White else Color.White.copy(alpha = 0.2f),
-                                    contentColor = if (selectedShift == "صباحي")
-                                        MaterialTheme.colorScheme.primary else Color.White
-                                ),
-                                shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-                                modifier = Modifier.weight(1f).height(38.dp),
-                                contentPadding = PaddingValues(4.dp)
-                            ) {
-                                Text("☀️ الفترة الصباحية",
-                                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -3720,6 +3685,35 @@ fun SupervisorDashboardScreen(
 
             // Tab 0: attendance controls
             if (selectedTab == 0) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { selectedShift = "صباحي" },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedShift == "صباحي")
+                            MaterialTheme.colorScheme.primary else Color(0xFFE2E8F0),
+                        contentColor = if (selectedShift == "صباحي")
+                            Color.White else Color(0xFF64748B)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("☀️ صباحي", fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = { selectedShift = "مسائي" },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedShift == "مسائي")
+                            MaterialTheme.colorScheme.primary else Color(0xFFE2E8F0),
+                        contentColor = if (selectedShift == "مسائي")
+                            Color.White else Color(0xFF64748B)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("🌙 مسائي", fontWeight = FontWeight.Bold) }
+            }
             // Date picker row
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
