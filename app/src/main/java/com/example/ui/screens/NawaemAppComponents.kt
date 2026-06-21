@@ -2151,6 +2151,10 @@ fun CeoDashboardScreen(
                 var overtimeSalaryStr by remember { mutableStateOf("") }
                 var errorMsg by remember { mutableStateOf("") }
                 var dropdownExpanded by remember { mutableStateOf(false) }
+                var hasSecondWork by remember { mutableStateOf(false) }
+                var secondDept by remember { mutableStateOf("") }
+                var secondShiftVal by remember { mutableStateOf("صباحي") }
+                var secondDeptExpanded by remember { mutableStateOf(false) }
 
                 if (employeeLoc.isEmpty() && MockDatabase.institutions.isNotEmpty()) {
                     employeeLoc = MockDatabase.institutions[0].name
@@ -2443,6 +2447,86 @@ fun CeoDashboardScreen(
                         textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
                     )
 
+                    // قسم العمل الإضافي / الوردية الثانية
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Switch(
+                            checked = hasSecondWork,
+                            onCheckedChange = { hasSecondWork = it }
+                        )
+                        Text(
+                            "هل يعمل في قسم أو وردية إضافية؟",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (hasSecondWork) {
+                        ExposedDropdownMenuBox(
+                            expanded = secondDeptExpanded,
+                            onExpandedChange = { secondDeptExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = secondDept,
+                                onValueChange = { secondDept = it },
+                                label = { Text("القسم الإضافي") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(secondDeptExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = secondDeptExpanded,
+                                onDismissRequest = { secondDeptExpanded = false }
+                            ) {
+                                MockDatabase.customDepartments.forEach { dept ->
+                                    DropdownMenuItem(
+                                        text = { Text(dept) },
+                                        onClick = { secondDept = dept; secondDeptExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { secondShiftVal = "مسائي" },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (secondShiftVal == "مسائي")
+                                        MaterialTheme.colorScheme.secondary else Color(0xFFF1F5F9)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("مسائي 🌙") }
+                            Button(
+                                onClick = { secondShiftVal = "صباحي" },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (secondShiftVal == "صباحي")
+                                        MaterialTheme.colorScheme.primary else Color(0xFFF1F5F9)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) { Text("صباحي ☀️") }
+                            Text("الوردية الإضافية:", fontWeight = FontWeight.Bold)
+                        }
+
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "ملاحظة: الراتب الإضافي محدد في الحقل أعلاه" +
+                                       " وسيُضاف لراتبه الأساسي في مسيرات الرواتب",
+                                modifier = Modifier.padding(8.dp),
+                                fontSize = 11.sp,
+                                color = Color(0xFFE65100)
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = checkOutTimeStr,
                         onValueChange = { checkOutTimeStr = it },
@@ -2645,7 +2729,9 @@ fun CeoDashboardScreen(
                                         bankAccountOwnerName = bankOwnerName.trim().ifEmpty { empName },
                                         bankAccountPhone = bankPhone.trim().ifEmpty { phone },
                                         checkOutTime = checkOutTimeStr.trim(),
-                                        overtimeSalary = overtimeSalaryStr.toDoubleOrNull() ?: 0.0
+                                        overtimeSalary = overtimeSalaryStr.toDoubleOrNull() ?: 0.0,
+                                        secondDepartment = if (hasSecondWork) secondDept else "",
+                                        secondShift = if (hasSecondWork) secondShiftVal else ""
                                     )
 
                                     MockDatabase.employees.add(newEmp)
@@ -3913,40 +3999,131 @@ fun SupervisorDashboardScreen(
                                             )
                                         }
 
-                                        // زر 2 — تسجيل خروج (يظهر فقط بعد تسجيل الدخول)
-                                        if (employeeCheckInDone[record.employeeId] == true) {
+                                        // زر تسجيل الخروج - يظهر فقط بعد تسجيل الدخول
+                                        if (employeeCheckInDone[record.employeeId] == true &&
+                                            employeeCheckOutDone[record.employeeId] != true) {
+
                                             val officialEndTime = MockDatabase.institutions
                                                 .find { it.name.equals(assignedLocation, ignoreCase = true) }
                                                 ?.shiftEndTime ?: "01:00 PM"
+
+                                            var showExitReasonDialog by remember { mutableStateOf(false) }
+                                            var earlyExitMins by remember { mutableStateOf(0) }
+
+                                            if (showExitReasonDialog) {
+                                                AlertDialog(
+                                                    onDismissRequest = { showExitReasonDialog = false },
+                                                    title = { Text("⚠️ خروج مبكر", fontWeight = FontWeight.Bold) },
+                                                    text = {
+                                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                            Text("الموظف ${record.employeeName} خرج قبل الموعد الرسمي بـ $earlyExitMins دقيقة")
+                                                            Text("هل الخروج بعذر؟", fontWeight = FontWeight.Bold)
+                                                            Text(
+                                                                "بعذر: لا يُطبَّق خصم مالي\n" +
+                                                                "بدون عذر: يُخصَم من الراتب",
+                                                                fontSize = 12.sp,
+                                                                color = Color(0xFF666666)
+                                                            )
+                                                        }
+                                                    },
+                                                    confirmButton = {
+                                                        Button(
+                                                            onClick = {
+                                                                val index = localRecords.indexOf(record)
+                                                                if (index != -1) {
+                                                                    localRecords[index] = record.copy(
+                                                                        status = "خرج مبكراً بعذر",
+                                                                        earlyExitMinutes = earlyExitMins,
+                                                                        exitExcused = true
+                                                                    )
+                                                                }
+                                                                employeeCheckOutDone[record.employeeId] = true
+                                                                showExitReasonDialog = false
+                                                                MockDatabase.triggerNotification(context,
+                                                                    "🟡 ${record.employeeName} خرج مبكراً بعذر (-$earlyExitMins د) من $assignedLocation",
+                                                                    "CEO")
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                                                        ) { Text("بعذر ✅ (بدون خصم)") }
+                                                    },
+                                                    dismissButton = {
+                                                        Button(
+                                                            onClick = {
+                                                                val index = localRecords.indexOf(record)
+                                                                if (index != -1) {
+                                                                    localRecords[index] = record.copy(
+                                                                        status = "خرج مبكراً بدون عذر",
+                                                                        earlyExitMinutes = earlyExitMins,
+                                                                        exitExcused = false
+                                                                    )
+                                                                }
+                                                                employeeCheckOutDone[record.employeeId] = true
+                                                                showExitReasonDialog = false
+                                                                MockDatabase.triggerNotification(context,
+                                                                    "🔴 ${record.employeeName} خرج بدون عذر (-$earlyExitMins د) سيُخصم من راتبه - $assignedLocation",
+                                                                    "CEO")
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                                                        ) { Text("بدون عذر ❌ (يُخصَم)") }
+                                                    }
+                                                )
+                                            }
+
                                             Button(
                                                 onClick = {
                                                     val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
                                                     val nowStr = sdf.format(java.util.Date())
-                                                    val index = localRecords.indexOf(record)
-                                                    if (index != -1) {
-                                                        localRecords[index] = record.copy(status = "خرج")
+                                                    val endMinutes = parseShiftMinutes(officialEndTime)
+                                                    val nowMinutes = parseShiftMinutes(nowStr)
+                                                    val diff = endMinutes - nowMinutes
+
+                                                    if (diff > 5) {
+                                                        earlyExitMins = diff
+                                                        showExitReasonDialog = true
+                                                    } else {
+                                                        val index = localRecords.indexOf(record)
+                                                        if (index != -1) {
+                                                            localRecords[index] = record.copy(
+                                                                status = "خرج",
+                                                                actualExitTime = nowStr,
+                                                                earlyExitMinutes = 0,
+                                                                exitExcused = true
+                                                            )
+                                                        }
+                                                        employeeCheckOutDone[record.employeeId] = true
+                                                        MockDatabase.triggerNotification(context,
+                                                            "✅ ${record.employeeName} أنهى دوامه في الوقت ($nowStr)",
+                                                            "CEO")
                                                     }
-                                                    employeeCheckOutDone[record.employeeId] = true
-                                                    MockDatabase.triggerNotification(
-                                                        context,
-                                                        "🚪 الموظف ${record.employeeName} غادر في $nowStr",
-                                                        "CEO"
-                                                    )
                                                 },
-                                                enabled = employeeCheckOutDone[record.employeeId] != true,
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (employeeCheckOutDone[record.employeeId] == true)
-                                                        Color(0xFF4CAF50) else Color(0xFF7B1FA2)
-                                                ),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7B1FA2)),
                                                 modifier = Modifier.fillMaxWidth().height(44.dp),
                                                 shape = RoundedCornerShape(12.dp)
                                             ) {
+                                                Text("🚪 تسجيل خروج | الموعد الرسمي: $officialEndTime",
+                                                    color = Color.White, fontSize = 13.sp)
+                                            }
+
+                                        } else if (employeeCheckOutDone[record.employeeId] == true) {
+                                            val rec = localRecords.find { it.employeeId == record.employeeId }
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (rec?.exitExcused == false && (rec?.earlyExitMinutes ?: 0) > 0)
+                                                        Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
                                                 Text(
-                                                    if (employeeCheckOutDone[record.employeeId] == true)
-                                                        "✅ تم تسجيل الخروج"
-                                                    else "🚪 تسجيل خروج | وقت الخروج الرسمي: $officialEndTime",
-                                                    fontSize = 13.sp,
-                                                    color = Color.White
+                                                    text = when {
+                                                        (rec?.earlyExitMinutes ?: 0) > 0 && rec?.exitExcused == true ->
+                                                            "✅ خرج مبكراً بعذر (${rec.earlyExitMinutes} د) — بدون خصم"
+                                                        (rec?.earlyExitMinutes ?: 0) > 0 && rec?.exitExcused == false ->
+                                                            "❌ خرج مبكراً بدون عذر (${rec.earlyExitMinutes} د) — سيُخصَم"
+                                                        else -> "✅ أنهى دوامه في الوقت"
+                                                    },
+                                                    modifier = Modifier.padding(12.dp),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp
                                                 )
                                             }
                                         }
