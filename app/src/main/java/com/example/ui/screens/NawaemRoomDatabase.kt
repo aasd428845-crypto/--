@@ -404,6 +404,7 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                             database.execSQL("ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0")
                         }
                     },
+
                     object : Migration(5, 6) {
                         override fun migrate(database: SupportSQLiteDatabase) {
                             database.execSQL(
@@ -420,9 +421,6 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                                 "ALTER TABLE employees ADD COLUMN secondShift TEXT NOT NULL DEFAULT ''"
                             )
                             database.execSQL(
-                                "ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0"
-                            )
-                            database.execSQL(
                                 "ALTER TABLE attendance ADD COLUMN actualExitTime TEXT NOT NULL DEFAULT ''"
                             )
                             database.execSQL(
@@ -434,7 +432,6 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                         }
                     }
                 )
-                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance

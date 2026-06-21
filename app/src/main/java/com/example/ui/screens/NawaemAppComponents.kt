@@ -1503,11 +1503,12 @@ fun CeoDashboardScreen(
         }
 
         while (true) {
-            kotlinx.coroutines.delay(30000)
-            try {
-                MockDatabase.syncFromSupabase(context)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            kotlinx.coroutines.delay(300_000)
+            if (MockDatabase.hasLoadedInitialData) {
+                try {
+                    MockDatabase.isSyncing = false
+                    MockDatabase.syncFromSupabase(context)
+                } catch (e: Exception) { e.printStackTrace() }
             }
         }
     }
@@ -3289,8 +3290,13 @@ fun SupervisorDashboardScreen(
         MockDatabase.syncFromSupabase(context)
         // Auto-refresh every 30 seconds to stay in sync with CEO device
         while (true) {
-            kotlinx.coroutines.delay(30_000)
-            try { MockDatabase.syncFromSupabase(context) } catch (e: Exception) { e.printStackTrace() }
+            kotlinx.coroutines.delay(300_000)
+            if (MockDatabase.hasLoadedInitialData) {
+                try {
+                    MockDatabase.isSyncing = false
+                    MockDatabase.syncFromSupabase(context)
+                } catch (e: Exception) { e.printStackTrace() }
+            }
         }
     }
 
