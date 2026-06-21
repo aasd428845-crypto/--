@@ -112,7 +112,9 @@ data class RoomEmployee(
     val shift: String,
     val bankAccountOwnerName: String,
     val bankAccountPhone: String,
-    val status: String
+    val status: String,
+    val checkOutTime: String,
+    val overtimeSalary: Double
 )
 
 fun Employee.toRoom() = RoomEmployee(
@@ -132,7 +134,9 @@ fun Employee.toRoom() = RoomEmployee(
     shift = shift,
     bankAccountOwnerName = bankAccountOwnerName,
     bankAccountPhone = bankAccountPhone,
-    status = status
+    status = status,
+    checkOutTime = checkOutTime,
+    overtimeSalary = overtimeSalary
 )
 
 fun RoomEmployee.toDomain() = Employee(
@@ -152,7 +156,9 @@ fun RoomEmployee.toDomain() = Employee(
     shift = shift,
     bankAccountOwnerName = bankAccountOwnerName,
     bankAccountPhone = bankAccountPhone,
-    status = status
+    status = status,
+    checkOutTime = checkOutTime,
+    overtimeSalary = overtimeSalary
 )
 
 // ==========================================
@@ -333,7 +339,7 @@ interface NawaemDao {
         RoomNotification::class,
         RoomInvoice::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class NawaemRoomDatabase : RoomDatabase() {
@@ -378,6 +384,12 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                         override fun migrate(database: SupportSQLiteDatabase) {
                             database.execSQL("ALTER TABLE supervisors ADD COLUMN bankName TEXT NOT NULL DEFAULT ''")
                             database.execSQL("ALTER TABLE supervisors ADD COLUMN ibanCode TEXT NOT NULL DEFAULT ''")
+                        }
+                    },
+                    object : Migration(4, 5) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL("ALTER TABLE employees ADD COLUMN checkOutTime TEXT NOT NULL DEFAULT ''")
+                            database.execSQL("ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0")
                         }
                     }
                 )

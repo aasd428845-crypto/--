@@ -114,7 +114,9 @@ data class Employee(
     val shift: String = "صباحي",
     val bankAccountOwnerName: String = "",
     val bankAccountPhone: String = "",
-    val status: String = "نشط" // "نشط", "مستقيل", "مسرّح"
+    val status: String = "نشط", // "نشط", "مستقيل", "مسرّح"
+    val checkOutTime: String = "",
+    val overtimeSalary: Double = 0.0
 )
 
 data class AttendanceRecord(
@@ -199,6 +201,15 @@ object MockDatabase {
     var lastSyncTime by mutableStateOf<String?>(null)
     var hasLoadedInitialData by mutableStateOf(false) // Track if first sync completed
     var hasShownSyncSuccessOnce = false
+
+    val customDepartments = androidx.compose.runtime.mutableStateListOf(
+        "قسم النظافة العامة",
+        "قسم الولادة والأطفال",
+        "قسم العمليات",
+        "قسم الطوارئ",
+        "قسم المطبخ",
+        "قسم الأمن"
+    )
 
     // Supabase is the single source of truth — no local pending queues
 
@@ -1534,10 +1545,110 @@ fun CeoDashboardScreen(
     var showAddSupervisorDialog by remember { mutableStateOf(false) }
     var showAddEmployeeDialog by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showDeptManagementDialog by remember { mutableStateOf(false) }
 
     // Dialog implementations
     if (showNotificationsDialog) {
         NotificationCenterDialog(role = "CEO", onDismissRequest = { showNotificationsDialog = false })
+    }
+
+    if (showDeptManagementDialog) {
+        Dialog(onDismissRequest = { showDeptManagementDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+            ) {
+                var newDeptName by remember { mutableStateOf("") }
+                Column(
+                    modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        "🏢 إدارة الأقسام",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "أضف أو احذف الأقسام المتاحة لتعيين الموظفين عليها.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                val trimmed = newDeptName.trim()
+                                if (trimmed.isNotEmpty() && !MockDatabase.customDepartments.contains(trimmed)) {
+                                    MockDatabase.customDepartments.add(trimmed)
+                                    newDeptName = ""
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.wrapContentWidth()
+                        ) { Text("إضافة") }
+
+                        OutlinedTextField(
+                            value = newDeptName,
+                            onValueChange = { newDeptName = it },
+                            label = { Text("اسم القسم الجديد", textAlign = TextAlign.Right, modifier = Modifier.fillMaxWidth()) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+                        )
+                    }
+
+                    if (MockDatabase.customDepartments.isEmpty()) {
+                        Text("لا توجد أقسام مضافة بعد.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                    } else {
+                        MockDatabase.customDepartments.toList().forEach { dept ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { MockDatabase.customDepartments.remove(dept) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "حذف",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Text(dept, fontWeight = FontWeight.Medium, textAlign = TextAlign.Right)
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { showDeptManagementDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("إغلاق") }
+                }
+            }
+        }
     }
 
     if (showAddInstitutionDialog) {
@@ -2010,6 +2121,8 @@ fun CeoDashboardScreen(
                 var ibanStr by remember { mutableStateOf("") }
                 var bankPhone by remember { mutableStateOf("") }
 
+                var checkOutTimeStr by remember { mutableStateOf("") }
+                var overtimeSalaryStr by remember { mutableStateOf("") }
                 var errorMsg by remember { mutableStateOf("") }
                 var dropdownExpanded by remember { mutableStateOf(false) }
 
@@ -2177,46 +2290,46 @@ fun CeoDashboardScreen(
                         }
                     }
 
-                    // HOSPITAL OR HOTEL DYNAMIC FIELDS INSTRUCTION
-                    if (isHospital) {
-                        Text("🔬 طبيعة عمل المستشفيات (مزايا حيوية):", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        var deptExpanded by remember { mutableStateOf(false) }
-
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = { deptExpanded = true },
+                    // Department dropdown from customDepartments (unified for all institution types)
+                    Text("🏢 القسم أو المهمة:", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    var deptExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { deptExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                                    Text(hospitalDept, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            DropdownMenu(expanded = deptExpanded, onDismissRequest = { deptExpanded = false }) {
-                                listOf("قسم الولادة والأطفال", "قسم الترقيد والتنويم", "قسم الطوارئ والحوادث", "قسم التعقيم المركزي", "العيادات الخارجية").forEach { dep ->
-                                    DropdownMenuItem(
-                                        text = { Text(dep) },
-                                        onClick = {
-                                            hospitalDept = dep
-                                            deptExpanded = false
-                                        }
-                                    )
-                                }
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                Text(hospitalDept.ifBlank { "اختر قسماً..." }, fontWeight = FontWeight.Bold)
                             }
                         }
-                    } else {
-                        Text("🏨 توزيع المهام للفنادق والمرافق السياحية:", fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                        DropdownMenu(
+                            expanded = deptExpanded,
+                            onDismissRequest = { deptExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.85f)
+                        ) {
+                            MockDatabase.customDepartments.forEach { dept ->
+                                DropdownMenuItem(
+                                    text = { Text(dept) },
+                                    onClick = { hospitalDept = dept; deptExpanded = false }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("✏️ كتابة يدوية") },
+                                onClick = { hospitalDept = ""; deptExpanded = false }
+                            )
+                        }
+                    }
+                    if (MockDatabase.customDepartments.none { it == hospitalDept } || hospitalDept.isBlank()) {
                         OutlinedTextField(
-                            value = hotelRoomCount,
-                            onValueChange = { hotelRoomCount = it },
-                            label = { Text("عدد الغرف والمرفق المسؤول عنه الفندقي", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
-                            placeholder = { Text("مثال: 30 غرفة بالدور الثالث", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                            value = hospitalDept,
+                            onValueChange = { hospitalDept = it },
+                            label = { Text("اكتب اسم القسم يدوياً (اختياري)", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -2290,6 +2403,33 @@ fun CeoDashboardScreen(
                         textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
                     )
 
+                    OutlinedTextField(
+                        value = overtimeSalaryStr,
+                        onValueChange = { overtimeSalaryStr = it },
+                        label = { Text("راتب العمل الإضافي (اختياري)", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+                    )
+
+                    OutlinedTextField(
+                        value = checkOutTimeStr,
+                        onValueChange = { checkOutTimeStr = it },
+                        label = { Text("وقت الخروج (اختياري) مثال: 02:00 PM", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+                    )
+
                     // Banking Account Information header
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)),
@@ -2331,7 +2471,7 @@ fun CeoDashboardScreen(
                             OutlinedTextField(
                                 value = bankOwnerName,
                                 onValueChange = { bankOwnerName = it },
-                                label = { Text("اسم صاحب الحساب البنكي المعتمد", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                                label = { Text("اسم صاحب الحساب البنكي (اختياري)", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -2410,7 +2550,7 @@ fun CeoDashboardScreen(
                             OutlinedTextField(
                                 value = ibanStr,
                                 onValueChange = { ibanStr = it },
-                                label = { Text("رقم الحساب البنكي / المحفظة المالية", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                                label = { Text("رقم الحساب البنكي / المحفظة المالية (اختياري)", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -2423,7 +2563,7 @@ fun CeoDashboardScreen(
                             OutlinedTextField(
                                 value = bankPhone,
                                 onValueChange = { bankPhone = it },
-                                label = { Text("رقم جوال الحساب البنكي لإشعارات الصرف", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
+                                label = { Text("رقم جوال الحساب البنكي (اختياري)", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Right) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -2452,14 +2592,14 @@ fun CeoDashboardScreen(
 
                         Button(
                             onClick = {
-                                if (empName.isBlank() || iqamaId.isBlank() || baseSalaryStr.isBlank() || ibanStr.isBlank()) {
-                                    errorMsg = "الرجاء تعبئة الاسم والإقامة والراتب والآيبان لتسجيل الموظف بنجاح!"
+                                if (empName.isBlank() || baseSalaryStr.isBlank()) {
+                                    errorMsg = "الرجاء تعبئة اسم الموظف والراتب الأساسي!"
                                 } else if (employeeLoc.isBlank()) {
                                     errorMsg = "الرجاء اختيار موقع العمل أو إضافة منشأة أولاً لربط الموظف بها!"
                                 } else {
                                     val bSalary = baseSalaryStr.toDoubleOrNull() ?: 2500.0
                                     val days = scheduledDays.toIntOrNull() ?: 26
-                                    val deptInfo = if (isHospital) hospitalDept else hotelRoomCount
+                                    val deptInfo = hospitalDept
 
                                     val newEmp = Employee(
                                         id = java.util.UUID.randomUUID().toString(),
@@ -2477,7 +2617,9 @@ fun CeoDashboardScreen(
                                         workDaysScheduled = days,
                                         shift = shiftPeriod,
                                         bankAccountOwnerName = bankOwnerName.trim().ifEmpty { empName },
-                                        bankAccountPhone = bankPhone.trim().ifEmpty { phone }
+                                        bankAccountPhone = bankPhone.trim().ifEmpty { phone },
+                                        checkOutTime = checkOutTimeStr.trim(),
+                                        overtimeSalary = overtimeSalaryStr.toDoubleOrNull() ?: 0.0
                                     )
 
                                     MockDatabase.employees.add(newEmp)
@@ -2963,8 +3105,9 @@ fun CeoDashboardScreen(
                     }
                 }
                 2 -> {
-                    // Add Employee Button at top
+                    // Add Employee + Manage Departments Buttons at top
                     item {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { showAddEmployeeDialog = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -2974,6 +3117,16 @@ fun CeoDashboardScreen(
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("تسجيل موظف جديد", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+                        }
+                        OutlinedButton(
+                            onClick = { showDeptManagementDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Settings, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("🏢 إدارة الأقسام", fontWeight = FontWeight.Bold)
+                        }
                         }
                     }
                     // Employees with Banking Details List
@@ -3063,10 +3216,13 @@ fun SupervisorDashboardScreen(
     // 2. Auto Generate Current Date & Day Name
     val sdfDate = remember { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US) }
     val sdfDay = remember { java.text.SimpleDateFormat("EEEE", java.util.Locale("ar")) }
-    val formattedDate = remember { sdfDate.format(java.util.Date()) }
-    val formattedDay = remember { sdfDay.format(java.util.Date()) }
+    var selectedDate by remember { mutableStateOf(sdfDate.format(java.util.Date())) }
+    val todayDate = remember { sdfDate.format(java.util.Date()) }
+    val selectedDay = remember(selectedDate) { sdfDay.format(sdfDate.parse(selectedDate) ?: java.util.Date()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
-    var selectedShift by remember { mutableStateOf("صباحي") } // "صباحي" or "مسائي"
+    var selectedTab by remember { mutableStateOf(0) }
+    var selectedShift by remember { mutableStateOf("صباحي") }
     var todayNote by remember { mutableStateOf("") }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
@@ -3084,11 +3240,60 @@ fun SupervisorDashboardScreen(
         )
     }
 
+    if (showDatePicker) {
+        val calPicker = remember { java.util.Calendar.getInstance() }
+        var pickedYear by remember { mutableStateOf(calPicker.get(java.util.Calendar.YEAR)) }
+        var pickedMonth by remember { mutableStateOf(calPicker.get(java.util.Calendar.MONTH)) }
+        var pickedDay by remember { mutableStateOf(calPicker.get(java.util.Calendar.DAY_OF_MONTH)) }
+        AlertDialog(
+            onDismissRequest = { showDatePicker = false },
+            title = { Text("اختر تاريخ التحضير", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("اليوم من 1 إلى ${calPicker.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)}")
+                    Slider(
+                        value = pickedDay.toFloat(),
+                        onValueChange = { pickedDay = it.toInt() },
+                        valueRange = 1f..calPicker.getActualMaximum(java.util.Calendar.DAY_OF_MONTH).toFloat(),
+                        steps = calPicker.getActualMaximum(java.util.Calendar.DAY_OF_MONTH) - 2
+                    )
+                    Text(
+                        "اليوم المحدد: $pickedDay / ${pickedMonth + 1} / $pickedYear",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (pickedDay > java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_MONTH) &&
+                        pickedMonth >= java.util.Calendar.getInstance().get(java.util.Calendar.MONTH)) {
+                        Text(
+                            "⚠️ لا يمكن اختيار تاريخ مستقبلي",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val cal = java.util.Calendar.getInstance()
+                    cal.set(pickedYear, pickedMonth, pickedDay)
+                    val today = java.util.Calendar.getInstance()
+                    if (!cal.after(today)) {
+                        selectedDate = sdfDate.format(cal.time)
+                    }
+                    showDatePicker = false
+                }) { Text("تأكيد") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
     // 3. Real-Time Check if Locked: does a lock exist for today + location + shift?
-    val isShiftLocked = remember(selectedShift, formattedDate, MockDatabase.attendanceSubmissions.size) {
+    val isShiftLocked = remember(selectedShift, selectedDate, MockDatabase.attendanceSubmissions.size) {
         MockDatabase.attendanceSubmissions.any {
             it.institutionName.equals(assignedLocation, ignoreCase = true) &&
-            it.date == formattedDate &&
+            it.date == selectedDate &&
             it.shift.equals(selectedShift, ignoreCase = true)
         }
     }
@@ -3107,12 +3312,11 @@ fun SupervisorDashboardScreen(
     val localRecords = remember { mutableStateListOf<AttendanceRecord>() }
 
     // 5. LaunchedEffect to sync state when shift or date changes
-    LaunchedEffect(assignedLocation, selectedShift, formattedDate, MockDatabase.attendanceSubmissions.size, localEmployees) {
+    LaunchedEffect(assignedLocation, selectedShift, selectedDate, MockDatabase.attendanceSubmissions.size, localEmployees) {
         localRecords.clear()
-        // If there's a previous submission (either locked or pre-seeded), load its exact values
         val prevSubmit = MockDatabase.attendanceSubmissions.find {
             it.institutionName.equals(assignedLocation, ignoreCase = true) &&
-            it.date == formattedDate &&
+            it.date == selectedDate &&
             it.shift.equals(selectedShift, ignoreCase = true)
         }
 
@@ -3281,6 +3485,22 @@ fun SupervisorDashboardScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("📋 تحضير الموظفين", fontWeight = FontWeight.Bold) }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("⚙️ الإعدادات والتذكير", fontWeight = FontWeight.Bold) }
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
 
             // Offline warning banner
@@ -3301,7 +3521,8 @@ fun SupervisorDashboardScreen(
                 }
             }
 
-            // Info guide card - strictly no billing or salaries displayed
+            // Info guide card - Tab 1 only
+            if (selectedTab == 1) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
@@ -3325,30 +3546,27 @@ fun SupervisorDashboardScreen(
                     )
                 }
             }
+            } // end Tab 1 info card
 
-            // period and date status
+            // Tab 0: attendance controls
+            if (selectedTab == 0) {
+            // Date picker row
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "$formattedDay - $formattedDate",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
+                TextButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Default.DateRange, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("تغيير التاريخ", fontSize = 12.sp)
                 }
-
                 Text(
-                    text = "تحديد الفترة والوردية الحالية:",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    text = if (selectedDate == todayDate) "📅 اليوم - $selectedDate"
+                           else "📅 $selectedDate (استرجاعي)",
+                    fontWeight = FontWeight.Bold,
+                    color = if (selectedDate == todayDate) MaterialTheme.colorScheme.primary else Color(0xFFE65100),
+                    fontSize = 13.sp
                 )
             }
 
@@ -3411,7 +3629,10 @@ fun SupervisorDashboardScreen(
                 }
             }
 
-            // ⏰ Supervisor Reminder Notifications Card
+            } // end Tab 0 (date+shift+lock)
+
+            // Reminder card - Tab 1 only
+            if (selectedTab == 1) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
                 shape = RoundedCornerShape(12.dp),
@@ -3449,7 +3670,7 @@ fun SupervisorDashboardScreen(
                             onClick = {
                                 val isMorningSubmitted = MockDatabase.attendanceSubmissions.any {
                                     it.institutionName.equals(assignedLocation, ignoreCase = true) &&
-                                    it.date == formattedDate &&
+                                    it.date == selectedDate &&
                                     it.shift.equals("صباحي", ignoreCase = true)
                                 }
                                 if (!isMorningSubmitted) {
@@ -3476,7 +3697,7 @@ fun SupervisorDashboardScreen(
                             onClick = {
                                 val isEveningSubmitted = MockDatabase.attendanceSubmissions.any {
                                     it.institutionName.equals(assignedLocation, ignoreCase = true) &&
-                                    it.date == formattedDate &&
+                                    it.date == selectedDate &&
                                     it.shift.equals("مسائي", ignoreCase = true)
                                 }
                                 if (!isEveningSubmitted) {
@@ -3502,7 +3723,10 @@ fun SupervisorDashboardScreen(
                 }
             }
 
-            // Scrollable Employees list
+            } // end Tab 1 reminder
+
+            // Employee list - Tab 0 only
+            if (selectedTab == 0) {
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -3524,6 +3748,7 @@ fun SupervisorDashboardScreen(
                                 "غائب" -> Color(0xFFFFEBEE)
                                 "متأخر" -> Color(0xFFFFF3E0)
                                 "إجازة" -> Color(0xFFE3F2FD)
+                                "خرج" -> Color(0xFFF3E5F5)
                                 else -> Color(0xFFF1F5F9)
                             }
                             val badgeTextColor = when (record.status) {
@@ -3531,6 +3756,7 @@ fun SupervisorDashboardScreen(
                                 "غائب" -> Color(0xFFC62828)
                                 "متأخر" -> Color(0xFFE65100)
                                 "إجازة" -> Color(0xFF1565C0)
+                                "خرج" -> Color(0xFF7B1FA2)
                                 else -> Color(0xFF475569)
                             }
 
@@ -3857,6 +4083,25 @@ fun SupervisorDashboardScreen(
 
                                             Text("تغيير يدوي:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                                         }
+                                        Button(
+                                            onClick = {
+                                                if (!isShiftLocked) {
+                                                    val index = localRecords.indexOf(record)
+                                                    if (index != -1) {
+                                                        localRecords[index] = record.copy(status = "خرج", lateMinutes = 0)
+                                                    }
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF7B1FA2),
+                                                contentColor = Color.White
+                                            ),
+                                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            enabled = !isShiftLocked
+                                        ) {
+                                            Text("خرج 🚪", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
 
                                         if (record.status == "متأخر") {
                                             Row(
@@ -3896,7 +4141,10 @@ fun SupervisorDashboardScreen(
                 }
             }
 
-            // Notes input
+            } // end Tab 0 employees
+
+            // Notes - Tab 1 only
+            if (selectedTab == 1) {
             OutlinedTextField(
                 value = todayNote,
                 onValueChange = { if (!isShiftLocked) todayNote = it },
@@ -3917,7 +4165,10 @@ fun SupervisorDashboardScreen(
                 textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
             )
 
-            // Submit Daily Attendance button
+            } // end Tab 1 notes
+
+            // Submit button - Tab 0 only
+            if (selectedTab == 0) {
             Button(
                 onClick = {
                     if (!MockDatabase.isNetworkAvailable(context)) {
@@ -3940,8 +4191,8 @@ fun SupervisorDashboardScreen(
                         }
 
                         val submission = AttendanceSubmission(
-                            date = formattedDate,
-                            dayName = formattedDay,
+                            date = selectedDate,
+                            dayName = selectedDay,
                             institutionName = assignedLocation,
                             shift = selectedShift,
                             records = recordsToSubmit
@@ -4004,6 +4255,7 @@ fun SupervisorDashboardScreen(
                     textAlign = TextAlign.Center
                 )
             }
+            } // end Tab 0 submit
         }
     }
 

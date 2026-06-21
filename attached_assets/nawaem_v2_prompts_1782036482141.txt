@@ -1,0 +1,257 @@
+
+══════════════════════════════════════════════════
+برومبت 1 — إعادة تنظيم واجهة المشرف بتبويبات
+الملف: NawaemAppComponents.kt → SupervisorDashboardScreen
+══════════════════════════════════════════════════
+
+في SupervisorDashboardScreen في NawaemAppComponents.kt
+أضف متغير تبويب في أعلى الدوال:
+var selectedTab by remember { mutableStateOf(0) }
+
+ثم في body الـ Scaffold بعد TopBar مباشرة أضف:
+TabRow(
+    selectedTabIndex = selectedTab,
+    containerColor = MaterialTheme.colorScheme.surface,
+    contentColor = MaterialTheme.colorScheme.primary
+) {
+    Tab(
+        selected = selectedTab == 0,
+        onClick = { selectedTab = 0 },
+        text = { Text("📋 تحضير الموظفين", fontWeight = FontWeight.Bold) }
+    )
+    Tab(
+        selected = selectedTab == 1,
+        onClick = { selectedTab = 1 },
+        text = { Text("⚙️ الإعدادات والتذكير", fontWeight = FontWeight.Bold) }
+    )
+}
+
+ثم اعمل الآتي:
+- كل الكود المتعلق بـ "تحضير العمالة والموظفين الميدانيين اليومي"
+  والنصوص التوضيحية والتذكيرات (تذكير الصباح / تذكير المساء)
+  وكتلة المحاكاة (على الوقت / 15 دقيقة / 45 دقيقة / +2 ساعة)
+  وحقل الملاحظات → ضعها في if (selectedTab == 1) { ... }
+
+- كل الكود المتعلق ببطاقات الموظفين وأزرار الحضور
+  وزر اعتماد التحضير → ضعها في if (selectedTab == 0) { ... }
+
+- في التبويب 0 أبقِ فقط في الأعلى:
+  → اختيار الوردية (صباحي/مسائي)
+  → التاريخ المحدد
+  → رسالة القفل إذا كان محقوناً
+  → بطاقات الموظفين مباشرة بدون أي نصوص توضيحية
+
+لا تحذف أي منطق، فقط أعد التوزيع.
+ادفع التغييرات فقط.
+
+══════════════════════════════════════════════════
+برومبت 2 — التحضير الاسترجاعي (اختيار تاريخ ماضٍ)
+الملف: NawaemAppComponents.kt → SupervisorDashboardScreen
+══════════════════════════════════════════════════
+
+في SupervisorDashboardScreen في NawaemAppComponents.kt
+حوّل التاريخ من ثابت إلى قابل للتغيير:
+
+استبدل هذا:
+val formattedDate = remember { sdfDate.format(java.util.Date()) }
+
+بهذا:
+var selectedDate by remember { mutableStateOf(sdfDate.format(java.util.Date())) }
+val todayDate = remember { sdfDate.format(java.util.Date()) }
+var showDatePicker by remember { mutableStateOf(false) }
+
+ثم أضف في التبويب 0 (تبويب التحضير) زراً لاختيار التاريخ:
+Row(
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+) {
+    TextButton(onClick = { showDatePicker = true }) {
+        Icon(Icons.Default.DateRange, contentDescription = null)
+        Spacer(Modifier.width(4.dp))
+        Text("تغيير التاريخ", fontSize = 12.sp)
+    }
+    Text(
+        text = if (selectedDate == todayDate) "📅 اليوم - $selectedDate"
+               else "📅 $selectedDate (استرجاعي)",
+        fontWeight = FontWeight.Bold,
+        color = if (selectedDate == todayDate) MaterialTheme.colorScheme.primary
+                else Color(0xFFE65100),
+        fontSize = 13.sp
+    )
+}
+
+ثم أضف DatePickerDialog بسيط باستخدام AlertDialog:
+if (showDatePicker) {
+    val calendar = remember { java.util.Calendar.getInstance() }
+    var pickedYear by remember { mutableStateOf(calendar.get(java.util.Calendar.YEAR)) }
+    var pickedMonth by remember { mutableStateOf(calendar.get(java.util.Calendar.MONTH)) }
+    var pickedDay by remember { mutableStateOf(calendar.get(java.util.Calendar.DAY_OF_MONTH)) }
+
+    AlertDialog(
+        onDismissRequest = { showDatePicker = false },
+        title = { Text("اختر تاريخ التحضير") },
+        text = {
+            Column {
+                Text("اليوم من 1 إلى ${calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)}")
+                Slider(
+                    value = pickedDay.toFloat(),
+                    onValueChange = { pickedDay = it.toInt() },
+                    valueRange = 1f..calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH).toFloat(),
+                    steps = calendar.getActualMaximum(java.util.Calendar.DAY_OF_MONTH) - 2
+                )
+                Text("اليوم المحدد: $pickedDay / ${pickedMonth + 1} / $pickedYear",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val cal = java.util.Calendar.getInstance()
+                cal.set(pickedYear, pickedMonth, pickedDay)
+                val today = java.util.Calendar.getInstance()
+                if (!cal.after(today)) {
+                    selectedDate = sdfDate.format(cal.time)
+                }
+                showDatePicker = false
+            }) { Text("تأكيد") }
+        },
+        dismissButton = {
+            TextButton(onClick = { showDatePicker = false }) { Text("إلغاء") }
+        }
+    )
+}
+
+ثم استبدل كل مكان يستخدم formattedDate بـ selectedDate
+واستبدل كل مكان يستخدم formattedDay بـ:
+remember(selectedDate) {
+    sdfDay.format(sdfDate.parse(selectedDate) ?: java.util.Date())
+}
+
+ادفع التغييرات فقط ولا تمس أي كود آخر.
+
+══════════════════════════════════════════════════
+برومبت 3 — نظام تسجيل الخروج + وردية مزدوجة
+الملفات: NawaemAppComponents.kt + NawaemRoomDatabase.kt
+══════════════════════════════════════════════════
+
+المطلوب 4 تعديلات بالترتيب:
+
+التعديل 1 — في data class Employee أضف حقلين:
+val checkOutTime: String = ""
+val overtimeSalary: Double = 0.0
+
+التعديل 2 — في RoomEmployee أضف نفس الحقلين:
+val checkOutTime: String
+val overtimeSalary: Double
+
+وفي toRoom() و toDomain() أضف mapping للحقلين الجديدين.
+
+التعديل 3 — في نموذج إضافة عامل (showAddEmployeeDialog)
+أضف بعد حقل الوردية:
+OutlinedTextField(
+    value = checkOutTimeStr,
+    onValueChange = { checkOutTimeStr = it },
+    label = { Text("وقت الخروج (اختياري) مثال: 02:00 PM") },
+    modifier = Modifier.fillMaxWidth(),
+    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+)
+OutlinedTextField(
+    value = overtimeSalaryStr,
+    onValueChange = { overtimeSalaryStr = it },
+    label = { Text("راتب العمل الإضافي (اختياري)") },
+    modifier = Modifier.fillMaxWidth(),
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+    textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+)
+
+التعديل 4 — في بطاقة الموظف في SupervisorDashboardScreen
+أضف زر "تسجيل خروج" لكل موظف بجانب أزرار الحضور:
+Button(
+    onClick = {
+        val record = localRecords.find { it.employeeId == emp.id }
+        record?.status = "خرج"
+    },
+    colors = ButtonDefaults.buttonColors(
+        containerColor = Color(0xFF7B1FA2),
+        contentColor = Color.White
+    ),
+    modifier = Modifier.size(width = 90.dp, height = 36.dp),
+    shape = RoundedCornerShape(10.dp)
+) {
+    Text("خرج 🚪", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+}
+
+وأضف "خرج" لقائمة حالات الحضور المقبولة في AttendanceRecord.
+
+وفي NawaemRoomDatabase.kt رفع version من 4 إلى 5
+وأضف Migration(4, 5):
+object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE employees ADD COLUMN checkOutTime TEXT NOT NULL DEFAULT ''")
+        database.execSQL("ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0")
+    }
+}
+
+لا تمس أي كود آخر. ادفع التغييرات فقط.
+
+══════════════════════════════════════════════════
+برومبت 4 — إدارة الأقسام يدوياً + مرونة نموذج العامل
+الملف: NawaemAppComponents.kt
+══════════════════════════════════════════════════
+
+المطلوب 3 تعديلات:
+
+التعديل 1 — إضافة قائمة أقسام قابلة للتخصيص:
+في object MockDatabase أضف:
+val customDepartments = mutableStateListOf(
+    "قسم النظافة العامة",
+    "قسم الولادة والأطفال",
+    "قسم العمليات",
+    "قسم الطوارئ",
+    "قسم المطبخ",
+    "قسم الأمن"
+)
+
+في CeoDashboardScreen أضف قسماً جديداً في القائمة الجانبية أو
+في صفحة مستقلة بعنوان "إدارة الأقسام":
+- يعرض قائمة customDepartments
+- يتيح إضافة قسم جديد بـ OutlinedTextField + زر إضافة
+- يتيح حذف قسم بزر حذف بجانبه
+
+التعديل 2 — في نموذج إضافة عامل (showAddEmployeeDialog):
+استبدل حقل القسم الثابت بـ DropdownMenu يأخذ قيمه من
+MockDatabase.customDepartments مع خيار إضافي "أخرى - أدخل يدوياً":
+var departmentDropdownExpanded by remember { mutableStateOf(false) }
+ExposedDropdownMenuBox(
+    expanded = departmentDropdownExpanded,
+    onExpandedChange = { departmentDropdownExpanded = it }
+) {
+    OutlinedTextField(
+        value = hospitalDept,
+        onValueChange = { hospitalDept = it },
+        label = { Text("القسم (يمكن الكتابة يدوياً)") },
+        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(departmentDropdownExpanded) },
+        modifier = Modifier.fillMaxWidth().menuAnchor(),
+        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+    )
+    ExposedDropdownMenu(
+        expanded = departmentDropdownExpanded,
+        onDismissRequest = { departmentDropdownExpanded = false }
+    ) {
+        MockDatabase.customDepartments.forEach { dept ->
+            DropdownMenuItem(
+                text = { Text(dept) },
+                onClick = { hospitalDept = dept; departmentDropdownExpanded = false }
+            )
+        }
+    }
+}
+
+التعديل 3 — جعل حقول البنك اختيارية في نموذج العامل:
+ابحث عن حقول: bankOwnerName, bankName, ibanStr, bankPhone
+غيّر تسميتها لتضيف "(اختياري)" في نهايتها.
+أزل أي تحقق إلزامي يمنع الحفظ إذا كانت فارغة.
+الحقول الإلزامية الوحيدة: empName, baseSalaryStr, employeeLoc.
+
+لا تمس أي كود آخر. ادفع التغييرات فقط.
