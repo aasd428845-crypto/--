@@ -4201,7 +4201,7 @@ fun SupervisorDashboardScreen(
                         // If previous entry existed, replace it (lock override simulation), otherwise append
                         val existingIndex = MockDatabase.attendanceSubmissions.indexOfFirst {
                             it.institutionName.equals(assignedLocation, ignoreCase = true) &&
-                            it.date == formattedDate &&
+                            it.date == selectedDate &&
                             it.shift.equals(selectedShift, ignoreCase = true)
                         }
 
