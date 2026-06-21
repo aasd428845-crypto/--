@@ -117,7 +117,9 @@ data class Employee(
     val bankAccountPhone: String = "",
     val status: String = "نشط", // "نشط", "مستقيل", "مسرّح"
     val checkOutTime: String = "",
-    val overtimeSalary: Double = 0.0
+    val overtimeSalary: Double = 0.0,
+    val secondDepartment: String = "",
+    val secondShift: String = ""
 )
 
 data class AttendanceRecord(
@@ -125,14 +127,20 @@ data class AttendanceRecord(
     val employeeName: String,
     val iqamaId: String,
     var status: String, // "حاضر", "غائب", "إجازة", "متأخر"
-    var lateMinutes: Int = 0
+    var lateMinutes: Int = 0,
+    var actualExitTime: String = "",
+    var earlyExitMinutes: Int = 0,
+    var exitExcused: Boolean = false
 )
 
 data class AttendanceRecordSubmission(
     val employeeId: String,
     val employeeName: String,
     val status: String, // "حاضر", "غائب", "متأخر", "إجازة"
-    val lateMinutes: Int = 0
+    val lateMinutes: Int = 0,
+    val actualExitTime: String = "",
+    val earlyExitMinutes: Int = 0,
+    val exitExcused: Boolean = false
 )
 
 data class AttendanceSubmission(
@@ -156,7 +164,11 @@ data class PayrollEntry(
     val netDue: Double,
     val bankName: String,
     val iban: String,
-    val bankAccountOwnerName: String
+    val bankAccountOwnerName: String,
+    val overtimeSalaryAmount: Double = 0.0,
+    val earlyExitDeduction: Double = 0.0,
+    val earlyExitDaysCount: Int = 0,
+    val secondDepartmentName: String = ""
 )
 
 data class NotificationItem(

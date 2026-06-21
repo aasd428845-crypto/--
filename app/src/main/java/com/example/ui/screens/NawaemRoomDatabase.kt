@@ -117,7 +117,9 @@ data class RoomEmployee(
     val bankAccountPhone: String,
     val status: String,
     val checkOutTime: String,
-    val overtimeSalary: Double
+    val overtimeSalary: Double,
+    val secondDepartment: String,
+    val secondShift: String
 )
 
 fun Employee.toRoom() = RoomEmployee(
@@ -139,7 +141,9 @@ fun Employee.toRoom() = RoomEmployee(
     bankAccountPhone = bankAccountPhone,
     status = status,
     checkOutTime = checkOutTime,
-    overtimeSalary = overtimeSalary
+    overtimeSalary = overtimeSalary,
+    secondDepartment = secondDepartment,
+    secondShift = secondShift
 )
 
 fun RoomEmployee.toDomain() = Employee(
@@ -161,7 +165,9 @@ fun RoomEmployee.toDomain() = Employee(
     bankAccountPhone = bankAccountPhone,
     status = status,
     checkOutTime = checkOutTime,
-    overtimeSalary = overtimeSalary
+    overtimeSalary = overtimeSalary,
+    secondDepartment = secondDepartment,
+    secondShift = secondShift
 )
 
 // ==========================================
@@ -178,7 +184,10 @@ data class RoomAttendanceRecord(
     val status: String,
     val lateMinutes: Int,
     val institutionName: String,
-    val shift: String
+    val shift: String,
+    val actualExitTime: String,
+    val earlyExitMinutes: Int,
+    val exitExcused: Boolean
 )
 
 // ==========================================
@@ -342,7 +351,7 @@ interface NawaemDao {
         RoomNotification::class,
         RoomInvoice::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class NawaemRoomDatabase : RoomDatabase() {
@@ -399,6 +408,28 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                         override fun migrate(database: SupportSQLiteDatabase) {
                             database.execSQL(
                                 "ALTER TABLE institutions ADD COLUMN shiftEndTime TEXT NOT NULL DEFAULT '01:00 PM'"
+                            )
+                        }
+                    },
+                    object : Migration(6, 7) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL(
+                                "ALTER TABLE employees ADD COLUMN secondDepartment TEXT NOT NULL DEFAULT ''"
+                            )
+                            database.execSQL(
+                                "ALTER TABLE employees ADD COLUMN secondShift TEXT NOT NULL DEFAULT ''"
+                            )
+                            database.execSQL(
+                                "ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0"
+                            )
+                            database.execSQL(
+                                "ALTER TABLE attendance ADD COLUMN actualExitTime TEXT NOT NULL DEFAULT ''"
+                            )
+                            database.execSQL(
+                                "ALTER TABLE attendance ADD COLUMN earlyExitMinutes INTEGER NOT NULL DEFAULT 0"
+                            )
+                            database.execSQL(
+                                "ALTER TABLE attendance ADD COLUMN exitExcused INTEGER NOT NULL DEFAULT 0"
                             )
                         }
                     }
