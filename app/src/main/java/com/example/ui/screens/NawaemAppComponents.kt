@@ -5838,6 +5838,20 @@ fun PayrollDetailsDialog(
                 DetailRow("الراتب الأساسي", "${"%,.2f".format(entry.baseSalary)} ريال")
                 DetailRow("خصم الغياب", "${"%,.2f".format(entry.absentDeduction)} ريال", Color(0xFFDC2626))
                 DetailRow("خصم التأخير", "${"%,.2f".format(entry.lateDeduction)} ريال", Color(0xFFDC2626))
+                if (entry.secondDepartmentName.isNotBlank()) {
+                    DetailRow(
+                        "عمل إضافي (${entry.secondDepartmentName})",
+                        "+ ${"%.2f".format(entry.overtimeSalaryAmount)} ريال",
+                        Color(0xFF16A34A)
+                    )
+                }
+                if (entry.earlyExitDaysCount > 0) {
+                    DetailRow(
+                        "خصم الخروج المبكر (${entry.earlyExitDaysCount} مرة)",
+                        "- ${"%.2f".format(entry.earlyExitDeduction)} ريال",
+                        Color(0xFFDC2626)
+                    )
+                }
                 DetailRow("إجمالي الخصومات", "${"%,.2f".format(entry.totalDeduction)} ريال", Color(0xFFDC2626))
                 DetailRow("الصافي المستحق", "${"%,.2f".format(entry.netDue)} ريال", Color(0xFF16A34A))
                 DetailRow("البنك", entry.bankName)
@@ -6209,35 +6223,45 @@ fun CeoPayrollTabContent(
                             }
 
                             val entries = matchedEmps.map { emp ->
+                                val baseDays = if (emp.workDaysScheduled > 0) emp.workDaysScheduled else 26
+                                val ratePerDay = emp.baseSalary / baseDays.toDouble()
+                                val ratePerHour = ratePerDay / 8.0
+
+                                // احتساب الغياب والتأخير والخروج المبكر
                                 var absentCount = 0
                                 var lateCount = 0
                                 var totalLateMin = 0
+                                var earlyExitCount = 0
+                                var totalEarlyExitMin = 0
+                                var totalEarlyExitDeduction = 0.0
 
-                                // Parse attendance records
                                 matchedSubmissions.forEach { sub ->
                                     val rec = sub.records.find { it.employeeId == emp.id }
                                     if (rec != null) {
-                                        if (rec.status == "غائب" || rec.status == "غياب") {
-                                            absentCount++
-                                        } else if (rec.status == "متأخر" || rec.status == "تأخير") {
-                                            lateCount++
-                                            totalLateMin += rec.lateMinutes
+                                        when (rec.status) {
+                                            "غائب", "غياب" -> absentCount++
+                                            "متأخر", "تأخير" -> {
+                                                lateCount++
+                                                totalLateMin += rec.lateMinutes
+                                            }
+                                            "خرج مبكراً بدون عذر" -> {
+                                                earlyExitCount++
+                                                totalEarlyExitMin += rec.earlyExitMinutes
+                                                totalEarlyExitDeduction += (rec.earlyExitMinutes / 480.0) * ratePerDay
+                                            }
                                         }
                                     }
                                 }
 
-                                // Apply Deduction formula requested:
-                                // Base Days = Scheduled work days (default: 26)
-                                val baseDays = if (emp.workDaysScheduled > 0) emp.workDaysScheduled else 26
-                                val ratePerDay = emp.baseSalary / baseDays.toDouble()
-                                val ratePerHour = ratePerDay / 8.0 // Assuming 8-hour shift
-                                
                                 val absentDeductionVal = ratePerDay * absentCount
                                 val lateHours = totalLateMin / 60.0
                                 val lateDeductionVal = ratePerHour * lateHours
-                                val deduction = absentDeductionVal + lateDeductionVal
-                                
-                                val rawNet = emp.baseSalary - deduction
+                                val totalDeduction = absentDeductionVal + lateDeductionVal + totalEarlyExitDeduction
+
+                                // الراتب الإضافي يُضاف إذا كان العامل يعمل في قسم إضافي
+                                val overtimeAdd = if (emp.secondDepartment.isNotBlank()) emp.overtimeSalary else 0.0
+
+                                val rawNet = emp.baseSalary + overtimeAdd - totalDeduction
                                 val netDue = if (rawNet < 0.0) 0.0 else rawNet
 
                                 PayrollEntry(
@@ -6249,11 +6273,15 @@ fun CeoPayrollTabContent(
                                     totalLateMinutes = totalLateMin,
                                     absentDeduction = absentDeductionVal,
                                     lateDeduction = lateDeductionVal,
-                                    totalDeduction = deduction,
+                                    totalDeduction = totalDeduction,
                                     netDue = netDue,
                                     bankName = emp.bankName,
                                     iban = emp.iban,
-                                    bankAccountOwnerName = emp.bankAccountOwnerName
+                                    bankAccountOwnerName = emp.bankAccountOwnerName,
+                                    overtimeSalaryAmount = overtimeAdd,
+                                    earlyExitDeduction = totalEarlyExitDeduction,
+                                    earlyExitDaysCount = earlyExitCount,
+                                    secondDepartmentName = emp.secondDepartment
                                 )
                             }
 
