@@ -78,7 +78,8 @@ data class Institution(
     val progress: Float,
     val address: String = "المنطقة الوسطى",
     val monthlyContractValue: Double = 15000.0,
-    val shiftStartTime: String = "06:00 AM" // Official Shift Start time
+    val shiftStartTime: String = "06:00 AM", // Official Shift Start time
+    val shiftEndTime: String = "01:00 PM"
 )
 
 data class Supervisor(
@@ -344,7 +345,8 @@ object MockDatabase {
                                   progress = 0.9f,
                                   address = obj.optString("address", ""),
                                   monthlyContractValue = obj.optDouble("monthly_contract_value", 15000.0),
-                                  shiftStartTime = obj.optString("shift_start_time", "06:00 AM")
+                                  shiftStartTime = obj.optString("shift_start_time", "06:00 AM"),
+                                  shiftEndTime = obj.optString("shift_end_time","01:00 PM")
                               )
                           )
                       }
@@ -667,12 +669,13 @@ object MockDatabase {
                             put("address", institution.address)
                             put("monthly_contract_value", institution.monthlyContractValue)
                             put("shift_start_time", institution.shiftStartTime)
+                            put("shift_end_time", institution.shiftEndTime)
                         }
                     )
                     saved = true
                 } catch (e: Exception) {
                     val msg = e.message ?: ""
-                    if (msg.contains("shift_start_time") || msg.contains("schema cache") || msg.contains("Could not find")) {
+                    if (msg.contains("shift_start_time") || msg.contains("shift_end_time") || msg.contains("schema cache") || msg.contains("Could not find")) {
                         // محاولة 2: بدون shift_start_time
                         supabase.from("institutions").upsert(
                             buildJsonObject {
@@ -1666,6 +1669,7 @@ fun CeoDashboardScreen(
                 var address by remember { mutableStateOf("") }
                 var monthlyValue by remember { mutableStateOf("") }
                 var shiftStartTime by remember { mutableStateOf("06:00 AM") }
+                var shiftEndTime by remember { mutableStateOf("01:00 PM") }
                 var errorMsg by remember { mutableStateOf("") }
 
                 Column(
@@ -1779,6 +1783,15 @@ fun CeoDashboardScreen(
                         textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
                     )
 
+                    OutlinedTextField(
+                        value = shiftEndTime,
+                        onValueChange = { shiftEndTime = it },
+                        label = { Text("وقت نهاية الوردية (تسجيل الخروج)") },
+                        placeholder = { Text("مثال: 01:00 PM") },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
+                    )
+
                     if (errorMsg.isNotEmpty()) {
                         Text(errorMsg, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -1810,7 +1823,8 @@ fun CeoDashboardScreen(
                                         progress = 0.5f,
                                         address = address.trim(),
                                         monthlyContractValue = value,
-                                        shiftStartTime = shiftStartTime.trim()
+                                        shiftStartTime = shiftStartTime.trim(),
+                                        shiftEndTime = shiftEndTime.trim()
                                     )
                                     MockDatabase.institutions.add(newInst)
                                     MockDatabase.postInstitutionToSupabase(context, newInst)
@@ -3298,6 +3312,9 @@ fun SupervisorDashboardScreen(
         }
     }
 
+    val employeeCheckInDone = remember { mutableStateMapOf<String, Boolean>() }
+    val employeeCheckOutDone = remember { mutableStateMapOf<String, Boolean>() }
+
     // 4. Load matching employees — reactive (no remember) so it updates after sync
     val localEmployees = if (assignedLocation.isNotBlank()) {
         MockDatabase.employees.filter {
@@ -3332,6 +3349,12 @@ fun SupervisorDashboardScreen(
                         lateMinutes = recordMatch?.lateMinutes ?: 0
                     )
                 )
+                if (recordMatch != null && recordMatch.status != "معلق/لم يصل") {
+                    employeeCheckInDone[emp.id] = true
+                }
+                if (recordMatch?.status == "خرج") {
+                    employeeCheckOutDone[emp.id] = true
+                }
             }
         } else {
             // New sheet: set everyone to Pending by default to represent real-world operation
@@ -3830,7 +3853,7 @@ fun SupervisorDashboardScreen(
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
-                                        // The Real-Time check-in button
+                                        // زر 1 — تسجيل دخول
                                         Button(
                                             onClick = {
                                                 if (!isShiftLocked) {
@@ -3849,7 +3872,7 @@ fun SupervisorDashboardScreen(
                                                             status = if (finalLate > 0) "متأخر" else "حاضر",
                                                             lateMinutes = finalLate
                                                         )
-                                                        
+
                                                         val supervisorMsg = "⚡ تم تحضير ${record.employeeName} في ${nowTimeStr} بـ ${if (finalLate > 0) "$finalLate دقيقة تأخير" else "حضور في الوقت"}"
                                                         MockDatabase.triggerNotification(context, supervisorMsg, "SUPERVISOR")
 
@@ -3858,16 +3881,62 @@ fun SupervisorDashboardScreen(
                                                             MockDatabase.triggerNotification(context, ceoMsg, "CEO")
                                                         }
                                                     }
+                                                    employeeCheckInDone[record.employeeId] = true
                                                 }
                                             },
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            enabled = !isShiftLocked
+                                            enabled = employeeCheckInDone[record.employeeId] != true,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF1565C0)
+                                            ),
+                                            modifier = Modifier.fillMaxWidth().height(44.dp),
+                                            shape = RoundedCornerShape(12.dp)
                                         ) {
-                                            Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Yellow)
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("⚡ تحضير لحظي بوقت الجوال الفعلي")
+                                            Icon(Icons.Default.Bolt, tint = Color.Yellow, contentDescription = null)
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                if (employeeCheckInDone[record.employeeId] == true)
+                                                    "✅ تم تسجيل الدخول"
+                                                else "⚡ تسجيل دخول - وقت الجوال الفعلي",
+                                                fontSize = 13.sp
+                                            )
+                                        }
+
+                                        // زر 2 — تسجيل خروج (يظهر فقط بعد تسجيل الدخول)
+                                        if (employeeCheckInDone[record.employeeId] == true) {
+                                            val officialEndTime = MockDatabase.institutions
+                                                .find { it.name.equals(assignedLocation, ignoreCase = true) }
+                                                ?.shiftEndTime ?: "01:00 PM"
+                                            Button(
+                                                onClick = {
+                                                    val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.US)
+                                                    val nowStr = sdf.format(java.util.Date())
+                                                    val index = localRecords.indexOf(record)
+                                                    if (index != -1) {
+                                                        localRecords[index] = record.copy(status = "خرج")
+                                                    }
+                                                    employeeCheckOutDone[record.employeeId] = true
+                                                    MockDatabase.triggerNotification(
+                                                        context,
+                                                        "🚪 الموظف ${record.employeeName} غادر في $nowStr",
+                                                        "CEO"
+                                                    )
+                                                },
+                                                enabled = employeeCheckOutDone[record.employeeId] != true,
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (employeeCheckOutDone[record.employeeId] == true)
+                                                        Color(0xFF4CAF50) else Color(0xFF7B1FA2)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text(
+                                                    if (employeeCheckOutDone[record.employeeId] == true)
+                                                        "✅ تم تسجيل الخروج"
+                                                    else "🚪 تسجيل خروج | وقت الخروج الرسمي: $officialEndTime",
+                                                    fontSize = 13.sp,
+                                                    color = Color.White
+                                                )
+                                            }
                                         }
 
                                         // Quick testing presets

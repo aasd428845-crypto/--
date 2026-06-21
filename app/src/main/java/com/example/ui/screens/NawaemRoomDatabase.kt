@@ -15,7 +15,8 @@ data class RoomInstitution(
     val type: String,
     val address: String,
     val monthlyContractValue: Double,
-    val shiftStartTime: String
+    val shiftStartTime: String,
+    val shiftEndTime: String
 )
 
 fun Institution.toRoom() = RoomInstitution(
@@ -24,7 +25,8 @@ fun Institution.toRoom() = RoomInstitution(
     type = type,
     address = address,
     monthlyContractValue = monthlyContractValue,
-    shiftStartTime = shiftStartTime
+    shiftStartTime = shiftStartTime,
+    shiftEndTime = shiftEndTime
 )
 
 fun RoomInstitution.toDomain() = Institution(
@@ -36,7 +38,8 @@ fun RoomInstitution.toDomain() = Institution(
     progress = 1.0f,
     address = address,
     monthlyContractValue = monthlyContractValue,
-    shiftStartTime = shiftStartTime
+    shiftStartTime = shiftStartTime,
+    shiftEndTime = shiftEndTime
 )
 
 // ==========================================
@@ -339,7 +342,7 @@ interface NawaemDao {
         RoomNotification::class,
         RoomInvoice::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class NawaemRoomDatabase : RoomDatabase() {
@@ -390,6 +393,13 @@ abstract class NawaemRoomDatabase : RoomDatabase() {
                         override fun migrate(database: SupportSQLiteDatabase) {
                             database.execSQL("ALTER TABLE employees ADD COLUMN checkOutTime TEXT NOT NULL DEFAULT ''")
                             database.execSQL("ALTER TABLE employees ADD COLUMN overtimeSalary REAL NOT NULL DEFAULT 0.0")
+                        }
+                    },
+                    object : Migration(5, 6) {
+                        override fun migrate(database: SupportSQLiteDatabase) {
+                            database.execSQL(
+                                "ALTER TABLE institutions ADD COLUMN shiftEndTime TEXT NOT NULL DEFAULT '01:00 PM'"
+                            )
                         }
                     }
                 )
