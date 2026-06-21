@@ -918,7 +918,10 @@ object MockDatabase {
                             status = rec.status,
                             lateMinutes = rec.lateMinutes,
                             institutionName = submission.institutionName,
-                            shift = submission.shift
+                            shift = submission.shift,
+                            actualExitTime = rec.actualExitTime,
+                            earlyExitMinutes = rec.earlyExitMinutes,
+                            exitExcused = rec.exitExcused
                         )
                     }
                     db.nawaemDao().insertAttendance(recordsToInsert)
@@ -2464,21 +2467,23 @@ fun CeoDashboardScreen(
                     }
 
                     if (hasSecondWork) {
-                        ExposedDropdownMenuBox(
-                            expanded = secondDeptExpanded,
-                            onExpandedChange = { secondDeptExpanded = it }
-                        ) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = secondDept,
                                 onValueChange = { secondDept = it },
                                 label = { Text("القسم الإضافي") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(secondDeptExpanded) },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                trailingIcon = {
+                                    IconButton(onClick = { secondDeptExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
                                 textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right)
                             )
-                            ExposedDropdownMenu(
+                            DropdownMenu(
                                 expanded = secondDeptExpanded,
-                                onDismissRequest = { secondDeptExpanded = false }
+                                onDismissRequest = { secondDeptExpanded = false },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 MockDatabase.customDepartments.forEach { dept ->
                                     DropdownMenuItem(
