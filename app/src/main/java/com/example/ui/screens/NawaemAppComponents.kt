@@ -3302,7 +3302,7 @@ fun SupervisorDashboardScreen(
 
     // Show loading screen while initial sync is in progress and data is empty
     if (MockDatabase.isSyncing && !MockDatabase.hasLoadedInitialData &&
-        MockDatabase.localEmployees.isEmpty() &&
+        MockDatabase.employees.isEmpty() &&
         MockDatabase.institutions.isEmpty()) {
         Box(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
