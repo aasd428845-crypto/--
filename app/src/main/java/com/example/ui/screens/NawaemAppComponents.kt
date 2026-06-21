@@ -3452,6 +3452,44 @@ fun SupervisorDashboardScreen(
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { selectedShift = "مسائي" },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedShift == "مسائي")
+                                        Color.White else Color.White.copy(alpha = 0.2f),
+                                    contentColor = if (selectedShift == "مسائي")
+                                        MaterialTheme.colorScheme.primary else Color.White
+                                ),
+                                shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                contentPadding = PaddingValues(4.dp)
+                            ) {
+                                Text("🌙 الفترة المسائية",
+                                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = { selectedShift = "صباحي" },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (selectedShift == "صباحي")
+                                        Color.White else Color.White.copy(alpha = 0.2f),
+                                    contentColor = if (selectedShift == "صباحي")
+                                        MaterialTheme.colorScheme.primary else Color.White
+                                ),
+                                shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                                modifier = Modifier.weight(1f).height(38.dp),
+                                contentPadding = PaddingValues(4.dp)
+                            ) {
+                                Text("☀️ الفترة الصباحية",
+                                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -3570,39 +3608,6 @@ fun SupervisorDashboardScreen(
                 )
             }
 
-            // morning/evening Selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { selectedShift = "مسائي" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedShift == "مسائي") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedShift == "مسائي") Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.WbTwilight, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("الفترة المسائية", fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = { selectedShift = "صباحي" },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedShift == "صباحي") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (selectedShift == "صباحي") Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(Icons.Default.WbSunny, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("الفترة الصباحية", fontWeight = FontWeight.Bold)
-                }
-            }
 
             // Lock Alert Banner
             if (isShiftLocked) {
